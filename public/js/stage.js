@@ -361,7 +361,9 @@ const BUILDERS = {
     const blanks = recap.length - spoken.length;
     const show = spoken.slice(0, 6);
 
-    scene.append(
+    // scene.append() macht aus einem null-Kind brav den Text „null“ —
+    // anders als el(). Also vorher aussieben.
+    const parts = [
       el('h1', { class: 'headline small rise' }, spoken.length ? 'Die Ausbeute der Runde' : `Runde ${state.round} ist durch`),
       el('p', { class: 'potflash' }, `Pott: ${state.pot.toLocaleString('de-DE')}`),
       show.length
@@ -378,7 +380,8 @@ const BUILDERS = {
         ? el('p', { class: 'subline' }, `… und ${spoken.length - show.length} weitere Fehlgriffe.`)
         : null,
       blanks ? el('p', { class: 'subline' }, `${blanks}× wurde gar nichts geschrieben.`) : null,
-    );
+    ];
+    scene.append(...parts.filter(Boolean));
   },
 
   voting() { buildVoting(); },

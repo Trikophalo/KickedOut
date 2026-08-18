@@ -200,7 +200,15 @@ async function main() {
     if (seen === null) break;
     // Der Phasenverlauf ist die Landkarte: bleibt der Test hängen, steht
     // hier schwarz auf weiß, wo und seit wann.
-    if (seen !== phase) console.log(`  ${since()}  ${seen}`);
+    if (seen !== phase) {
+      console.log(`  ${since()}  ${seen}`);
+      // Ein durchgerutschtes null-Kind wird von append() zu sichtbarem Text.
+      // Auf der Leinwand fällt so etwas sofort auf — hier also auch.
+      const junk = await stage.evaluate(() => [...document.querySelectorAll('#scene, #scene *')]
+        .some((n) => [...n.childNodes].some((c) => c.nodeType === 3
+          && /^(null|undefined|NaN)$/.test(c.textContent.trim())))).catch(() => false);
+      if (junk) problems.push(`Platzhaltertext „null/undefined“ im Bühnenbild (Phase ${seen})`);
+    }
     phase = seen;
 
     if (phase === 'question' || phase === 'final_question') {
