@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>KICKED OUT — Der Dümmste fliegt</title>
-<meta name="description" content="Browser-Partyquiz für 4–9 echte Menschen. Großer Screen als Bühne, Smartphones als Buzzer.">
+<meta name="description" content="Browser-Partyquiz für 2–9 echte Menschen. Antworten frei tippen, die dümmste fliegt.">
 <meta name="theme-color" content="#1E1B4B">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚪</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -49,6 +49,10 @@
   .how b { font-family: var(--font-display); color: var(--gold); display: block; font-size: .95rem; }
   .how span { font-size: .84rem; color: var(--muted); }
   footer { color: var(--muted); font-size: .8rem; }
+  @media (min-width: 720px) {
+    .panel { max-width: 560px; }
+    .box .btn.block { max-width: 22rem; margin-inline: auto; }
+  }
   footer a { color: var(--sky); }
 </style>
 </head>
@@ -65,31 +69,36 @@
   <div class="panel">
     <div>
       <h1 class="logo">KICKED <span class="out">OUT</span></h1>
-      <p class="tag">Der Dümmste fliegt — für 4 bis 9 echte Menschen</p>
+      <p class="tag">Antworten frei tippen. Die dümmste fliegt.</p>
       <p style="margin-top:.8rem"><span class="stamp">DU FLIEGST!</span></p>
     </div>
 
+    <div class="box">
+      <h2>Neue Runde starten</h2>
+      <p>Am PC, Laptop oder Handy. Du bekommst einen Code zum Weitergeben und spielst direkt mit.</p>
+      <a class="btn big block" href="/play?neu=1">Lobby erstellen 🎬</a>
+    </div>
+
+    <div class="sep">oder mitspielen</div>
+
     <form class="box" id="joinForm" autocomplete="off">
-      <h2>Mitspielen</h2>
-      <p>Der Raum-Code steht auf dem großen Screen.</p>
+      <h2>Code eingeben</h2>
+      <p>Den hat dir jemand geschickt — oder er steht auf dem großen Screen.</p>
       <input class="field codeinput" id="code" maxlength="4" inputmode="latin"
              autocapitalize="characters" placeholder="CODE" aria-label="Raum-Code">
-      <button class="btn big block" type="submit">Los geht's</button>
+      <button class="btn sky big block" type="submit">Beitreten</button>
     </form>
 
-    <div class="sep">oder</div>
-
-    <div class="box">
-      <h2>Bühne öffnen</h2>
-      <p>Auf dem Gerät, das alle sehen: Fernseher, Beamer oder Laptop. Dort erscheint der Raum-Code.</p>
-      <a class="btn sky big block" href="/host">Bühne starten 📺</a>
-    </div>
-
     <div class="how">
-      <div><b>1. Bühne</b><span>Ein Gerät zeigt das Spiel für alle.</span></div>
-      <div><b>2. Handys</b><span>Alle scannen den QR-Code oder tippen den Raum-Code.</span></div>
-      <div><b>3. Rauswurf</b><span>Nach jeder Runde fliegt jemand. Anonym gewählt, mit Begründung.</span></div>
+      <div><b>1. Schreiben</b><span>Jede Frage wird frei getippt. Keine Auswahl, kein Raten per Klick.</span></div>
+      <div><b>2. Lachen</b><span>Unter Zeitdruck entstehen die Antworten, um die es eigentlich geht.</span></div>
+      <div><b>3. Rauswerfen</b><span>Am Rundenende wählt die Runde die dümmste Antwort. Wer sie schrieb, fliegt.</span></div>
     </div>
+
+    <p style="color:var(--muted);font-size:.85rem">
+      Ihr sitzt im selben Raum an einem Fernseher?
+      <a href="/host" style="color:var(--sky)">Bühne für den großen Screen öffnen</a>
+    </p>
 
     <footer>
       Kein Download, keine Accounts. <a href="/api/health">Serverstatus</a>

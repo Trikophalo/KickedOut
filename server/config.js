@@ -11,26 +11,26 @@ export const TIME_SCALE = (() => {
 })();
 
 export const CONFIG = {
-  minPlayers: 4,
+  minPlayers: 2,
   maxPlayers: 9,
-  questionsPerRound: 7,
+  questionsPerRound: 5,
   maxRounds: 5,
   chainMax: 5,
 
   // Punktwerte und Schwierigkeits-Mix je Runde (Werte-Rampe aus dem Konzept §1.3).
   rounds: [
-    { value: { leicht: 100, mittel: 150, schwer: 200 }, mix: { leicht: 0.7, mittel: 0.25, schwer: 0.05 }, time: 10 },
-    { value: { leicht: 150, mittel: 200, schwer: 300 }, mix: { leicht: 0.55, mittel: 0.35, schwer: 0.1 }, time: 10 },
-    { value: { leicht: 200, mittel: 300, schwer: 400 }, mix: { leicht: 0.4, mittel: 0.4, schwer: 0.2 }, time: 9 },
-    { value: { leicht: 250, mittel: 400, schwer: 550 }, mix: { leicht: 0.25, mittel: 0.45, schwer: 0.3 }, time: 8 },
-    { value: { leicht: 300, mittel: 500, schwer: 700 }, mix: { leicht: 0.15, mittel: 0.45, schwer: 0.4 }, time: 8 },
+    { value: { leicht: 100, mittel: 150, schwer: 200 }, mix: { leicht: 0.7, mittel: 0.25, schwer: 0.05 }, time: 22 },
+    { value: { leicht: 150, mittel: 200, schwer: 300 }, mix: { leicht: 0.55, mittel: 0.35, schwer: 0.1 }, time: 20 },
+    { value: { leicht: 200, mittel: 300, schwer: 400 }, mix: { leicht: 0.4, mittel: 0.4, schwer: 0.2 }, time: 18 },
+    { value: { leicht: 250, mittel: 400, schwer: 550 }, mix: { leicht: 0.25, mittel: 0.45, schwer: 0.3 }, time: 16 },
+    { value: { leicht: 300, mittel: 500, schwer: 700 }, mix: { leicht: 0.15, mittel: 0.45, schwer: 0.4 }, time: 15 },
   ],
 
   // Tempo-Regler der Lobby skaliert den Antwort-Timer.
   pace: {
-    blitz: { factor: 0.5, label: 'Blitz' },
+    blitz: { factor: 0.6, label: 'Blitz' },
     standard: { factor: 1, label: 'Standard' },
-    gemuetlich: { factor: 1.5, label: 'Gemütlich' },
+    gemuetlich: { factor: 1.45, label: 'Gemütlich' },
   },
 
   // Dauer der inszenierten Phasen in Millisekunden.
@@ -40,14 +40,14 @@ export const CONFIG = {
     roundIntro: 4600,
     reveal: 4800,
     roundEnd: 4600,
-    voting: 45000,
-    voteReveal: 10500,
+    voting: 40000,
+    voteReveal: 11000,
     tiebreak: 22000,
     tiebreakReveal: 5600,
     elimination: 9800,
     finalIntro: 7000,
     finalDraft: 12000,
-    finalQuestion: 10000,
+    finalQuestion: 20000,
     finalReveal: 5400,
     // Nachlauf, nachdem alle geantwortet haben — verhindert, dass ein
     // Schnellklicker die Frage für alle anderen abwürgt.
@@ -67,10 +67,9 @@ export const CONFIG = {
     emojiRateMs: 700,
   },
 
-  vote: {
-    reasonMin: 3,
-    reasonMax: 100,
-  },
+  // Freie Texteingabe unter Zeitdruck — daraus entstehen die Antworten,
+  // über die am Ende der Runde abgestimmt wird.
+  answer: { maxLength: 40 },
 
   nick: { min: 2, max: 12 },
 
@@ -78,27 +77,6 @@ export const CONFIG = {
   roomTtlMs: 1000 * 60 * 60 * 3,
   disconnectGraceMs: 1000 * 60 * 8,
 };
-
-// Schnell-Chips für die Pflicht-Begründung. Der Server rotiert daraus,
-// damit nicht jede Runde dieselben fünf Textbausteine erscheinen.
-export const REASON_CHIPS = [
-  'Kettenbrecher!',
-  'Zu langsam …',
-  'Zu stark — Finalgefahr',
-  'Reine Sympathiefrage',
-  'Hauptstadt-Legasthenie',
-  'Rät nur noch',
-  'War heute nicht da',
-  'Zu ruhig im Chat',
-  'Physik ist nicht deins',
-  'Bauchgefühl',
-  'Du weißt, was du getan hast',
-  'Platz machen für Bessere',
-  'Statistisch überfällig',
-  'Der Pott hat gelitten',
-  'Zu selbstsicher',
-  'Alphabetische Reihenfolge',
-];
 
 export const CATEGORIES = {
   allgemeinwissen: { label: 'Allgemeinwissen', icon: '🧠' },

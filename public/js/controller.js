@@ -1,25 +1,31 @@
 /* ============================================================
-   Der Handy-Controller.
-   Zeigt immer nur, was ich gerade tun kann — und wie es um mich
-   steht. Das Drama läuft auf der Bühne.
+   Die Spielansicht.
+
+   Am Handy ist sie der Controller: nur was ich gerade tun kann.
+   Am PC ist sie die ganze Partie — Frage, Eingabe, Mitspieler und
+   Chat auf einem Bildschirm, ohne dass ein zweites Gerät nötig wäre.
    ============================================================ */
 
 import { Net, session } from './net.js';
 import { audio, buzz, BUZZ } from './audio.js';
 import { fx } from './fx.js';
-import { $, el, avatarEl, applyAccent, toast, ANSWER_GLYPHS, CATEGORY_META, formatMs, press } from './ui.js';
+import { $, el, avatarEl, applyAccent, toast, CATEGORY_META, formatMs, press, Countdown } from './ui.js';
+import { openSettings, closeSettings, settingsOpen, loadPrefs } from './settings.js';
 
 const net = new Net();
 const main = $('#main');
+const countdown = new Countdown(onTick);
 
 let state = null;
 let config = null;
 let sceneKey = null;
 let roomCode = (location.pathname.match(/^\/join\/([A-Za-z]{4})/)?.[1] || '').toUpperCase();
+let intent = new URLSearchParams(location.search).get('neu') === '1' ? 'create' : 'join';
 let draft = { face: null, color: null, hat: null };
-let voteDraft = { targetId: null, reason: '', chip: null };
 let wakeLock = null;
 let lastFlashKey = null;
+let lastPot = 0;
+let answerTimer = null;
 
 const EMOJIS = ['😂', '😱', '🔥', '💀', '👏', '🤡', '❤️'];
 
@@ -27,35 +33,42 @@ const EMOJIS = ['😂', '😱', '🔥', '💀', '👏', '🤡', '❤️'];
 
 (async function boot() {
   fx.mount($('#fx'));
+  loadPrefs();
   try {
     config = await (await fetch('/api/config')).json();
   } catch {
-    config = { avatars: { faces: ['🦊', '🐸', '🐙'], colors: ['#5AA7FF'], hats: [null] } };
+    config = { avatars: { faces: ['🦊', '🐸', '🐙'], colors: ['#5AA7FF'], hats: [null] }, minPlayers: 2, maxPlayers: 9 };
   }
   draft = {
-    face: config.avatars.faces[Math.floor(Math.random() * config.avatars.faces.length)],
-    color: config.avatars.colors[Math.floor(Math.random() * config.avatars.colors.length)],
+    face: pickOne(config.avatars.faces),
+    color: pickOne(config.avatars.colors),
     hat: null,
   };
 
   const saved = session.load();
-  if (saved?.token && saved.code === roomCode) {
+  if (saved?.token && saved.code === roomCode && intent !== 'create') {
     net.connect({ t: 'resume', code: saved.code, token: saved.token });
     renderConnecting();
   } else {
     renderJoin();
   }
   buildFooter();
+  wireGlobalKeys();
 })();
 
-net.on('joined', ({ code, playerId, token, resumed }) => {
+const pickOne = (list) => list[Math.floor(Math.random() * list.length)];
+
+net.on('joined', ({ code, playerId, token, resumed, created }) => {
   session.save({ code, playerId, token });
   roomCode = code;
   history.replaceState(null, '', `/join/${code}`);
   $('#ctlTop').hidden = false;
   $('#foot').hidden = false;
+  $('#side').hidden = false;
   requestWakeLock();
+  audio.setMood('lobby', 1);
   if (resumed) toast('Wieder da.');
+  if (created) toast(`Lobby ${code} steht — teile den Code!`);
 });
 
 net.on('state', (next) => {
@@ -77,83 +90,113 @@ net.on('toast', ({ msg }) => toast(msg));
 net.on('chat', ({ entry }) => appendChat([entry]));
 net.on('chatBurst', ({ entries }) => appendChat(entries));
 net.on('chatHeld', () => {
-  const log = $('#chatlog');
-  log?.append(el('div', { class: 'held' }, '🔒 Gehalten bis zur Auflösung — kein Vorsagen.'));
+  $('#chatlog')?.append(el('div', { class: 'held' }, '🔒 Gehalten bis zur Auflösung — kein Vorsagen.'));
 });
+net.on('emoji', ({ emoji }) => fx.emoji(emoji));
+net.on('fx', ({ name, data }) => onFx(name, data));
 net.on('status', ({ connected }) => {
   let banner = $('#offline');
   if (connected) banner?.remove();
   else if (!banner) document.body.append(el('div', { id: 'offline', class: 'disconnected' }, 'Verbindung weg …'));
 });
 
+/** Die Bühnen-Effekte laufen hier gedämpft mit — Klang statt Konfettiregen. */
+function onFx(name, data = {}) {
+  switch (name) {
+    case 'gameStart': audio.play('gameStart'); break;
+    case 'questionIn': audio.play('questionIn'); break;
+    case 'chainForged': audio.play('forge', { chain: data.chain }); break;
+    case 'chainBreak': audio.play('freeze'); fx.frost(900); break;
+    case 'votingOpen': audio.play('votingOpen'); break;
+    case 'voteReveal': audio.play('drumroll', { dur: 1.4 }); break;
+    case 'eliminate': setTimeout(() => audio.play('eliminate'), 1200); break;
+    case 'finalIntro': audio.play('versus'); break;
+    case 'victory': audio.play('fanfare'); fx.cannons(1); break;
+    default: break;
+  }
+}
+
 // ------------------------------------------------------------------ Beitritt
 
 function renderConnecting() {
   main.replaceChildren(el('div', { class: 'grow', style: { textAlign: 'center' } },
     el('h1', { class: 'display', style: { fontSize: '1.6rem' } }, 'Verbinde …'),
-    el('p', { style: { color: 'var(--muted)' } }, `Raum ${roomCode}`)));
+    el('p', { style: { color: 'var(--muted)' } }, roomCode ? `Raum ${roomCode}` : 'Lobby wird erstellt')));
 }
 
 function renderJoin() {
   sceneKey = 'join';
   $('#ctlTop').hidden = true;
   $('#foot').hidden = true;
+  $('#side').hidden = true;
 
+  const creating = intent === 'create';
   const preview = el('div', { class: 'preview' });
   const nick = el('input', { class: 'field', maxlength: '12', placeholder: 'Dein Name', 'aria-label': 'Name' });
   const codeField = el('input', {
-    class: 'field', maxlength: '4', placeholder: 'CODE', 'aria-label': 'Raum-Code',
-    style: { textTransform: 'uppercase', letterSpacing: '.3em', textAlign: 'center', fontWeight: '800' },
-    value: roomCode,
+    class: 'field codefield', maxlength: '4', placeholder: 'CODE', 'aria-label': 'Raum-Code',
+    value: roomCode, autocomplete: 'off',
+  });
+  codeField.addEventListener('input', () => {
+    codeField.value = codeField.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 4);
   });
 
   const drawPreview = () => preview.replaceChildren(avatarEl({ nick: 'du', avatar: draft }, { size: 96 }));
   drawPreview();
 
-  const row = (label, values, key, render) => el('div', {},
+  const row = (label, values, key, render, tips) => el('div', {},
     el('span', { class: 'label' }, label),
-    el('div', { class: 'row' }, ...values.map((value) => {
-      const node = el('button', {
-        class: `opt${draft[key] === value ? ' on' : ''}`,
-        type: 'button',
-        style: key === 'color' ? { background: value } : {},
-        onclick: () => {
-          draft[key] = value;
-          [...node.parentElement.children].forEach((c) => c.classList.remove('on'));
-          node.classList.add('on');
-          drawPreview();
-          audio.play('tap');
-          buzz(BUZZ.tap);
-        },
-      }, render ? render(value) : '');
-      return node;
-    })));
+    el('div', { class: 'row' }, ...values.map((value, i) => el('button', {
+      class: `opt${draft[key] === value ? ' on' : ''}`,
+      type: 'button',
+      'data-tip': tips ? tips(value) : undefined,
+      style: key === 'color' ? { background: value } : {},
+      onclick: (event) => {
+        draft[key] = value;
+        [...event.currentTarget.parentElement.children].forEach((c) => c.classList.remove('on'));
+        event.currentTarget.classList.add('on');
+        drawPreview();
+        audio.play('tap');
+        buzz(BUZZ.tap);
+      },
+    }, render ? render(value) : ''))));
 
   const form = el('form', { class: 'join', onsubmit: submit },
-    el('h1', { class: 'display' }, 'KICKED OUT'),
-    el('p', { class: 'lead' }, 'Name wählen, Figur bauen, mitspielen.'),
-    roomCode ? null : codeField,
+    el('h1', { class: 'display' }, creating ? 'Neue Lobby' : 'KICKED OUT'),
+    el('p', { class: 'lead' }, creating
+      ? 'Du erstellst den Raum und spielst direkt mit. Den Code teilst du danach.'
+      : 'Name wählen, Figur bauen, mitspielen.'),
+    creating || roomCode ? null : codeField,
     nick,
     preview,
     el('div', { class: 'builder' },
       row('Figur', config.avatars.faces, 'face', (v) => v),
-      row('Farbe', config.avatars.colors, 'color'),
-      row('Accessoire', config.avatars.hats, 'hat', (v) => v || '∅')),
-    el('button', { class: 'btn big block', type: 'submit' }, 'Rein da! 🚪'));
+      row('Farbe', config.avatars.colors, 'color', null, () => 'Farbe wählen'),
+      row('Accessoire', config.avatars.hats, 'hat', (v) => v || '∅', (v) => (v ? 'Aufsetzen' : 'Ohne'))),
+    el('button', { class: 'btn big block', type: 'submit' }, creating ? 'Lobby öffnen 🎬' : 'Rein da! 🚪'),
+    creating ? null : el('button', {
+      class: 'btn ghost block', type: 'button', style: { maxWidth: '26rem', marginInline: 'auto' },
+      onclick: () => { intent = 'create'; renderJoin(); },
+    }, 'Oder eigene Lobby erstellen'));
 
   main.replaceChildren(form);
   setTimeout(() => nick.focus(), 200);
 
   function submit(event) {
     event.preventDefault();
-    // Der erste echte Tap: Ab hier darf Ton abgespielt werden.
+    // Der erste echte Klick: Ab hier darf Ton abgespielt werden.
     audio.init();
     audio.resume();
-    const code = (roomCode || codeField.value).toUpperCase().replace(/[^A-Z]/g, '');
-    if (code.length !== 4) return toast('Der Raum-Code hat vier Buchstaben.', 'error');
     if (nick.value.trim().length < 2) return toast('Der Name braucht mindestens zwei Zeichen.', 'error');
-    roomCode = code;
-    net.connect({ t: 'join', code, nick: nick.value.trim(), avatar: draft });
+
+    if (creating) {
+      net.connect({ t: 'createRoom', nick: nick.value.trim(), avatar: draft });
+    } else {
+      const code = (roomCode || codeField.value).toUpperCase().replace(/[^A-Z]/g, '');
+      if (code.length !== 4) return toast('Der Raum-Code hat vier Buchstaben.', 'error');
+      roomCode = code;
+      net.connect({ t: 'join', code, nick: nick.value.trim(), avatar: draft });
+    }
     renderConnecting();
   }
 }
@@ -163,6 +206,8 @@ function renderJoin() {
 function render() {
   applyAccent(state.phase);
   updateTop();
+  updateRoster();
+  updateModerator();
 
   const key = keyFor(state);
   if (key !== sceneKey) {
@@ -183,11 +228,10 @@ function screenFor(s) {
   if (!me.alive) return 'ghost';
   if (s.phase === 'question' || s.phase === 'reveal') return 'question';
   if (s.phase === 'voting') return 'voting';
+  if (s.phase === 'vote_reveal') return 'voteReveal';
   if (s.phase === 'tiebreak') return s.tiebreak?.participants.includes(me.id) ? 'guess' : 'wait';
   if (s.phase === 'final_draft') return s.final?.players[s.final.draftTurn] === me.id ? 'draft' : 'wait';
-  if (s.phase === 'final_question' || s.phase === 'final_reveal') {
-    return me.finalist ? 'question' : 'wait';
-  }
+  if (s.phase === 'final_question' || s.phase === 'final_reveal') return me.finalist ? 'question' : 'wait';
   return 'wait';
 }
 
@@ -199,19 +243,95 @@ function keyFor(s) {
   return `${screen}:${s.phase}`;
 }
 
+const MUSIC_MOOD = {
+  lobby: ['lobby', 1], intro: ['round', 1], round_intro: ['round', 1], question: ['round', 1],
+  reveal: ['round', 1], round_end: ['round', 1], voting: ['voting', 1], vote_reveal: ['voting', 1],
+  tiebreak: ['voting', 2], tiebreak_reveal: ['voting', 2], elimination: ['voting', 1],
+  final_intro: ['final', 3], final_draft: ['final', 3], final_question: ['final', 4],
+  final_reveal: ['final', 4], results: ['results', 2],
+};
+
 function updateTop() {
   if (!state.you) return;
+  const [mood, intensity] = MUSIC_MOOD[state.phase] || ['lobby', 1];
+  audio.setMood(mood, state.round ? Math.min(4, intensity + state.round - 1) : intensity);
+
   $('#meBox').replaceChildren(
-    avatarEl({ ...state.you, alive: state.you.alive, connected: true }, { size: 36 }),
+    avatarEl({ ...state.you, alive: state.you.alive, connected: true }, { size: 38 }),
     el('div', {},
       el('div', { class: 'nick' }, state.you.nick),
-      el('div', { class: 'role' }, state.you.alive ? (state.you.isHost ? '👑 Gastgeber' : 'im Spiel') : '👻 Geist')),
-  );
-  $('#pot').textContent = `🪙 ${state.pot.toLocaleString('de-DE')}`;
+      el('div', { class: 'role' }, state.you.alive ? (state.you.isHost ? '👑 Gastgeber' : 'im Spiel') : '👻 Geist')));
+
+  const potNum = $('#potNum');
+  if (state.pot !== lastPot) {
+    potNum.textContent = state.pot.toLocaleString('de-DE');
+    $('#pot').classList.add('bump');
+    setTimeout(() => $('#pot').classList.remove('bump'), 400);
+    lastPot = state.pot;
+  } else {
+    potNum.textContent = state.pot.toLocaleString('de-DE');
+  }
+
   const chip = $('#chainChip');
   chip.textContent = `×${state.chain}`;
   chip.style.background = state.chain > 1 ? 'var(--gold)' : '';
   chip.style.color = state.chain > 1 ? 'var(--ink)' : '';
+
+  const round = $('#roundChip');
+  round.hidden = state.phase === 'lobby';
+  round.textContent = state.final ? '🏁 Finale' : state.round ? `Runde ${state.round}/${state.roundTotal}` : '…';
+
+  const showTimer = ['question', 'voting', 'tiebreak', 'final_question', 'final_draft'].includes(state.phase);
+  $('#timer').hidden = !showTimer;
+  countdown.set(showTimer ? state.phaseEndsAt : null, () => net.now());
+}
+
+function onTick(seconds, ratio, changed) {
+  const node = $('#timer');
+  if (seconds == null) return;
+  node.style.setProperty('--pct', String(Math.round(ratio * 100)));
+  node.firstElementChild.textContent = String(seconds);
+  node.classList.toggle('urgent', seconds <= 5);
+
+  const field = $('#answerField');
+  if (field) field.classList.toggle('urgent', seconds <= 5 && !field.disabled);
+  if (changed && seconds <= 3 && seconds > 0 && ['question', 'final_question'].includes(state?.phase)) {
+    audio.play('tick');
+  }
+}
+
+function updateRoster() {
+  const host = $('#roster');
+  if (!host || !state.players) return;
+  const answering = ['question', 'final_question'].includes(state.phase);
+  host.replaceChildren(...state.players.map((p) => {
+    const tag = !p.alive ? '👻'
+      : answering && p.answered ? '✍️'
+        : state.phase === 'voting' && p.voted ? '✉️'
+          : p.isHost ? '👑' : '';
+    return el('div', {
+      class: `rosterrow${p.alive ? '' : ' out'}${p.isYou ? ' me' : ''}`,
+      'data-tip': p.alive
+        ? `${p.correct}/${p.answeredCount} richtig · ${p.contributed.toLocaleString('de-DE')} eingezahlt`
+        : `Raus in Runde ${p.eliminatedRound}`,
+      'data-tip-side': 'left',
+    },
+    avatarEl(p, { size: 30 }),
+    el('span', { class: 'name' }, p.nick),
+    el('span', { class: 'tag' }, tag));
+  }));
+}
+
+function updateModerator() {
+  const slot = $('#modSlot');
+  const line = state.moderator;
+  if (!line) { slot.replaceChildren(); slot.dataset.said = ''; return; }
+  if (slot.dataset.said === line.text) return;
+  slot.dataset.said = line.text;
+  slot.replaceChildren(el('div', { class: 'moderator' },
+    el('span', { class: 'who' }, '🎙'),
+    el('span', { class: 'said' }, line.text)));
+  audio.duck(2000);
 }
 
 // ------------------------------------------------------------------ Screens
@@ -219,38 +339,45 @@ function updateTop() {
 const SCREENS = {
   lobby() {
     const me = state.you;
-    const ready = me.ready;
+    const enough = state.players.length >= state.minPlayers;
     const kids = [
       el('div', { style: { textAlign: 'center' } },
-        el('h1', { class: 'display', style: { fontSize: '1.5rem' } }, `Raum ${state.code}`),
+        el('h1', { class: 'display', style: { fontSize: '1.6rem' } }, 'Raum ', el('span', { style: { color: 'var(--gold)', letterSpacing: '.15em' } }, state.code)),
         el('p', { style: { color: 'var(--muted)', fontSize: '.9rem' } },
-          `${state.players.length} von ${state.maxPlayers} · ab ${state.minPlayers} geht es los`)),
+          `${state.players.length} von ${state.maxPlayers} · ab ${state.minPlayers} geht es los`),
+        el('button', {
+          class: 'btn ghost', style: { marginTop: '.6rem', padding: '.4em 1.1em', fontSize: '.85rem' },
+          'data-tip': 'Einladungslink in die Zwischenablage',
+          onclick: (e) => { press(e.currentTarget); copyInvite(); },
+        }, '🔗 Link kopieren')),
       el('div', { class: 'cands' }, ...state.players.map((p) => el('div', { class: 'cand' },
         avatarEl(p, { size: 38, tick: p.ready }),
-        el('span', {}, p.nick, el('span', { class: 'sub' }, p.isHost ? 'Gastgeber' : p.ready ? 'bereit' : 'wartet'))))),
+        el('span', {}, p.nick, el('span', { class: 'sub' }, p.isHost ? 'Gastgeber' : p.ready ? 'bereit' : 'wartet')),
+        p.isYou ? el('span', { class: 'badge' }, '⬅') : null))),
     ];
 
-    if (me.isHost) kids.push(hostSettings());
+    if (state.players.length === 2) {
+      kids.push(el('p', { style: { textAlign: 'center', color: 'var(--muted)', fontSize: '.85rem' } },
+        'Zu zweit geht es sofort ins Duell — ab drei Leuten wird reihum rausgewählt.'));
+    }
 
     kids.push(el('button', {
-      class: `btn big block ${ready ? 'mint' : ''}`,
-      id: 'readyBtn',
+      class: `btn big block ${me.ready ? 'mint' : ''}`, id: 'readyBtn',
       onclick: (e) => {
-        audio.init();
-        audio.resume();
-        audio.play('ready');
-        buzz(BUZZ.lock);
-        press(e.currentTarget);
-        net.send({ t: 'ready' });
+        audio.init(); audio.resume(); audio.play('ready'); buzz(BUZZ.lock);
+        press(e.currentTarget); net.send({ t: 'ready' });
       },
-    }, ready ? 'Bereit ✓' : 'Bereit!'));
+    }, me.ready ? 'Bereit ✓' : 'Bereit!'));
 
     if (me.isHost) {
-      const enough = state.players.length >= state.minPlayers;
       kids.push(el('button', {
         class: 'btn sky big block', disabled: !enough || undefined,
+        'data-tip': enough ? 'Los geht’s' : `Es fehlen noch ${state.minPlayers - state.players.length}`,
         onclick: (e) => { press(e.currentTarget); audio.play('ready'); net.send({ t: 'start' }); },
       }, enough ? 'Spiel starten 🎬' : `Noch ${state.minPlayers - state.players.length} fehlen`));
+      kids.push(el('button', {
+        class: 'btn ghost block', onclick: () => openSettings(buildSettings()),
+      }, '⚙️ Spieleinstellungen'));
     }
 
     main.replaceChildren(el('div', { class: 'grow' }, ...kids.filter(Boolean)));
@@ -260,125 +387,100 @@ const SCREENS = {
     const q = state.question;
     if (!q) return SCREENS.wait();
     const me = state.you;
+    const meta = CATEGORY_META[q.cat];
 
-    const answers = el('div', { class: 'answers' }, ...q.options.map((text, i) => {
-      const node = el('button', {
-        class: `answer a${i}`, 'data-i': i,
-        onclick: () => choose(i, node),
-      }, el('span', { class: 'glyph' }, ANSWER_GLYPHS[i]), el('span', {}, text));
-      return node;
-    }));
+    const field = el('input', {
+      class: 'field answerfield', id: 'answerField', maxlength: '40',
+      placeholder: 'Antwort tippen …', 'aria-label': 'Deine Antwort',
+      autocomplete: 'off', autocapitalize: 'sentences', enterkeyhint: 'done',
+      value: me.answer || '',
+    });
+    field.addEventListener('input', () => scheduleSend(field.value));
+    field.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      sendAnswer(field.value, true);
+      field.blur();
+    });
 
     const kids = [
+      el('div', { class: 'chips', style: { justifyContent: 'center' } },
+        el('span', { class: 'chip', 'data-tip': 'Kategorie' }, `${meta.icon} ${meta.label}`),
+        state.final
+          ? el('span', { class: 'chip' }, `Frage ${state.final.questionNo}`)
+          : el('span', { class: 'chip', 'data-tip': `${q.value} Punkte` }, `Frage ${q.index + 1}/${q.total}`)),
       el('p', { class: 'qtext' }, q.text),
-      answers,
-      el('div', { class: 'status wait', id: 'answerStatus' }, 'Tippe deine Antwort.'),
+      el('div', { class: 'answerbox' }, field,
+        el('div', { class: 'status wait', id: 'answerStatus' }, 'Schreib die Antwort — Zeit läuft.')),
+      el('div', { id: 'solutionSlot' }),
     ];
+
     if (me.isHost && state.phase === 'question') {
       kids.push(el('button', {
         class: 'btn ghost', style: { fontSize: '.8rem', padding: '.4em 1em', alignSelf: 'center' },
+        'data-tip': 'Frage austauschen und melden',
         onclick: (e) => { press(e.currentTarget); net.send({ t: 'skip' }); },
       }, '⚠️ Frage ist kaputt'));
-    } else if (state.phase === 'reveal') {
-      kids.push(el('button', {
-        class: 'btn ghost', style: { fontSize: '.8rem', padding: '.4em 1em', alignSelf: 'center' },
-        onclick: (e) => { press(e.currentTarget); net.send({ t: 'report' }); },
-      }, '🚩 Frage melden'));
     }
-    main.replaceChildren(el('div', { class: 'grow' }, ...kids));
-    UPDATE.question();
 
-    function choose(i, node) {
-      if (state.phase !== 'question' && state.phase !== 'final_question') return;
-      press(node);
-      audio.play('lock');
-      buzz(BUZZ.lock);
-      net.send({ t: 'answer', choice: i });
-    }
+    main.replaceChildren(el('div', { class: 'grow' }, ...kids));
+    if (!state.reveal) setTimeout(() => field.focus(), 120);
+    UPDATE.question();
   },
 
   voting() {
-    const me = state.you;
-    const candidates = state.players.filter((p) => p.alive);
-    const chips = state.voting?.chips || [];
-
-    const reasonInput = el('input', {
-      class: 'field', maxlength: '100', placeholder: 'Eigene Begründung (Pflicht)',
-      oninput: () => { voteDraft.reason = reasonInput.value; voteDraft.chip = null; syncChips(); syncSend(); },
-    });
-
-    const chipRow = el('div', { class: 'chips' }, ...chips.map((text) => el('button', {
-      class: 'chip', type: 'button',
-      onclick: () => {
-        voteDraft.chip = text;
-        voteDraft.reason = text;
-        reasonInput.value = '';
-        audio.play('tap');
-        buzz(BUZZ.tap);
-        syncChips();
-        syncSend();
-      },
-    }, text)));
-
-    const list = el('div', { class: 'cands' }, ...candidates.map((p) => {
-      const self = p.id === me.id;
+    const ballot = state.voting?.ballot || [];
+    const cards = el('div', { class: 'ballot' }, ...ballot.map((card) => {
       const node = el('button', {
-        class: `cand${self ? ' self' : ''}`, type: 'button', disabled: self || undefined,
+        class: `answercard${card.mine ? ' mine' : ''}`, type: 'button',
+        disabled: card.mine || undefined,
+        'data-id': card.id,
         onclick: () => {
-          voteDraft.targetId = p.id;
-          [...list.children].forEach((c) => c.classList.remove('on'));
+          [...cards.children].forEach((c) => c.classList.remove('on'));
           node.classList.add('on');
-          audio.play('tap');
-          buzz(BUZZ.tap);
-          syncSend();
+          audio.play('voteCast');
+          buzz(BUZZ.lock);
+          net.send({ t: 'vote', ballotId: card.id });
         },
       },
-      avatarEl(p, { size: 38 }),
-      el('span', {}, p.nick,
-        el('span', { class: 'sub' }, self ? 'du selbst — geht nicht'
-          : `${p.roundCorrect}/${p.roundAnswered} richtig${p.chainBreaks ? ` · ${p.chainBreaks}× Kette` : ''}`)));
+      el('span', {},
+        el('span', { class: `said${card.empty ? ' blank' : ''}` }, card.empty ? '… gar nichts geschrieben' : `„${card.text}“`),
+        el('span', { class: 'ctx' }, `${card.question} — richtig war ${card.answer}`)),
+      el('span', { class: 'mark' }, card.mine ? '🫵' : card.correct ? '✅' : ''));
       return node;
     }));
 
-    const send = el('button', {
-      class: 'btn vote big block', id: 'sendVote', disabled: true,
-      onclick: (e) => {
-        press(e.currentTarget);
-        audio.play('voteCast');
-        buzz(BUZZ.lock);
-        net.send({ t: 'vote', targetId: voteDraft.targetId, reason: voteDraft.reason });
-      },
-    }, 'Stimme abgeben ✉️');
-
     main.replaceChildren(el('div', { class: 'grow' },
-      el('h1', { class: 'display', style: { fontSize: '1.4rem', textAlign: 'center' } }, 'Wer fliegt raus?'),
-      list,
-      el('p', { class: 'label', style: { color: 'var(--muted)', fontSize: '.82rem' } }, 'Begründung ist Pflicht:'),
-      chipRow,
-      reasonInput,
-      send,
+      el('h1', { class: 'display', style: { fontSize: '1.4rem', textAlign: 'center' } }, 'Welche Antwort war die dümmste?'),
+      el('p', { style: { textAlign: 'center', color: 'var(--muted)', fontSize: '.86rem' } },
+        'Wer sie geschrieben hat, fliegt. Die eigene Antwort ist gesperrt.'),
+      cards,
       el('div', { class: 'status wait', id: 'voteStatus' }, '')));
+    UPDATE.voting();
+  },
 
-    voteDraft = { targetId: null, reason: '', chip: null };
-    syncSend();
-
-    function syncChips() {
-      [...chipRow.children].forEach((c) => c.classList.toggle('on', c.textContent === voteDraft.chip));
-    }
-    function syncSend() {
-      const ok = voteDraft.targetId && voteDraft.reason.trim().length >= 3;
-      send.disabled = !ok || Boolean(state.you.vote);
-    }
+  voteReveal() {
+    const cards = (state.voteResult?.cards || []);
+    main.replaceChildren(el('div', { class: 'grow' },
+      el('h1', { class: 'display', style: { fontSize: '1.3rem', textAlign: 'center' } }, 'Die Stimmen sind ausgezählt'),
+      el('div', { class: 'ballot' }, ...cards.map((card) => {
+        const who = byId(card.playerId);
+        return el('div', { class: `answercard${card.votes ? ' on' : ''}` },
+          el('span', {},
+            el('span', { class: `said${card.empty ? ' blank' : ''}` }, card.empty ? '… gar nichts' : `„${card.text}“`),
+            el('span', { class: 'ctx' }, `von ${who?.nick || '?'}`)),
+          el('span', { class: 'mark' }, card.votes ? `${card.votes}×` : '–'));
+      }))));
   },
 
   guess() {
     const tb = state.tiebreak;
     const input = el('input', {
-      class: 'field', inputmode: 'decimal', placeholder: 'Deine Zahl',
-      style: { fontSize: '1.6rem', textAlign: 'center', fontFamily: 'var(--font-display)', fontWeight: '800' },
+      class: 'field answerfield', inputmode: 'decimal', placeholder: 'Deine Zahl', id: 'guessField',
     });
     main.replaceChildren(el('div', { class: 'grow' },
-      el('h1', { class: 'display', style: { fontSize: '1.3rem', textAlign: 'center' } }, '⚡ Blitz-Stechen'),
+      el('h1', { class: 'display', style: { fontSize: '1.3rem', textAlign: 'center' } },
+        tb.mode === 'suddenDeath' ? '💥 Sudden Death' : '⚡ Blitz-Stechen'),
       el('p', { class: 'qtext' }, tb.question.text),
       tb.question.unit ? el('p', { style: { textAlign: 'center', color: 'var(--muted)' } }, `Angabe in ${tb.question.unit}`) : null,
       input,
@@ -386,30 +488,22 @@ const SCREENS = {
         class: 'btn big block',
         onclick: (e) => {
           if (!input.value.trim()) return toast('Eine Zahl brauchst du schon.', 'error');
-          press(e.currentTarget);
-          audio.play('lock');
-          buzz(BUZZ.lock);
+          press(e.currentTarget); audio.play('lock'); buzz(BUZZ.lock);
           net.send({ t: 'guess', value: input.value });
         },
       }, 'Tippen'),
       el('div', { class: 'status wait', id: 'guessStatus' }, 'Wer näher dran ist, bleibt.')));
-    setTimeout(() => input.focus(), 200);
+    setTimeout(() => input.focus(), 150);
   },
 
   draft() {
-    const options = state.final.draftOptions;
     main.replaceChildren(el('div', { class: 'grow' },
       el('h1', { class: 'display', style: { fontSize: '1.3rem', textAlign: 'center' } }, 'Du wählst die Kategorie'),
-      el('div', { class: 'cands' }, ...options.map((cat) => {
+      el('div', { class: 'cands' }, ...state.final.draftOptions.map((cat) => {
         const meta = CATEGORY_META[cat];
         return el('button', {
           class: 'cand', type: 'button',
-          onclick: (e) => {
-            press(e.currentTarget);
-            audio.play('lock');
-            buzz(BUZZ.lock);
-            net.send({ t: 'draft', category: cat });
-          },
+          onclick: (e) => { press(e.currentTarget); audio.play('lock'); buzz(BUZZ.lock); net.send({ t: 'draft', category: cat }); },
         }, el('span', { style: { fontSize: '1.6rem' } }, meta.icon), el('span', {}, meta.label));
       }))));
   },
@@ -417,7 +511,6 @@ const SCREENS = {
   ghost() {
     const me = state.you;
     const voting = state.phase === 'voting';
-    const alive = state.players.filter((p) => p.alive);
     const kids = [
       el('div', { class: 'ghostbox' },
         el('h2', { class: 'display' }, '👻 Geisterzone'),
@@ -427,26 +520,17 @@ const SCREENS = {
           el('span', { class: 'chip' }, '✨ Emoji-Regen'),
           el('span', { class: 'chip' }, '🔮 Prophezeiungen'))),
     ];
-
     if (voting) {
-      kids.push(el('p', { class: 'label', style: { color: 'var(--muted)', fontSize: '.85rem', textAlign: 'center' } },
+      kids.push(el('p', { style: { color: 'var(--muted)', fontSize: '.85rem', textAlign: 'center' } },
         'Wer fliegt als Nächstes? Richtige Tipps zählen für den Award „Prophet“.'));
-      kids.push(el('div', { class: 'cands' }, ...alive.map((p) => {
-        const node = el('button', {
-          class: `cand${me.prediction === p.id ? ' on' : ''}`, type: 'button',
-          onclick: () => {
-            audio.play('tap');
-            buzz(BUZZ.tap);
-            net.send({ t: 'predict', targetId: p.id });
-          },
-        }, avatarEl(p, { size: 34 }), el('span', {}, p.nick,
-          el('span', { class: 'sub' }, `${p.roundCorrect}/${p.roundAnswered} richtig`)));
-        return node;
-      })));
+      kids.push(el('div', { class: 'cands' }, ...state.players.filter((p) => p.alive).map((p) => el('button', {
+        class: `cand${me.prediction === p.id ? ' on' : ''}`, type: 'button',
+        onclick: () => { audio.play('tap'); buzz(BUZZ.tap); net.send({ t: 'predict', targetId: p.id }); },
+      }, avatarEl(p, { size: 34 }), el('span', {}, p.nick,
+        el('span', { class: 'sub' }, `${p.roundCorrect}/${p.roundAnswered} richtig`))))));
     } else {
       kids.push(el('p', { style: { textAlign: 'center', color: 'var(--muted)' } },
         `Prophezeiungen richtig: ${me.predictionsCorrect ?? 0}`));
-      kids.push(chatLog());
     }
     main.replaceChildren(el('div', { class: 'grow' }, ...kids));
   },
@@ -455,9 +539,11 @@ const SCREENS = {
     const me = state.you;
     const row = state.results.table.find((r) => r.id === me.id);
     const won = state.results.winnerId === me.id;
+    const winner = byId(state.results.winnerId);
     const kids = [
-      el('h1', { class: 'display', style: { fontSize: '1.5rem', textAlign: 'center' } },
-        won ? '👑 Du hast den Pott!' : 'Vorbei.'),
+      el('div', { style: { textAlign: 'center' } },
+        el('h1', { class: 'display', style: { fontSize: '1.6rem' } }, won ? '👑 Du hast den Pott!' : 'Vorbei.'),
+        winner && !won ? el('p', { style: { color: 'var(--muted)' } }, `${winner.nick} gewinnt mit ${state.results.pot.toLocaleString('de-DE')} Punkten.`) : null),
       el('div', { class: 'mystats' },
         stat('Richtig', row ? `${row.correct}/${row.answered}` : '–'),
         stat('Ø Antwortzeit', formatMs(row?.avgMs)),
@@ -468,28 +554,25 @@ const SCREENS = {
     const mine = state.results.awards.filter((a) => a.id === me.id);
     if (mine.length) {
       kids.push(el('div', { class: 'chips', style: { justifyContent: 'center' } },
-        ...mine.map((a) => el('span', { class: 'chip', style: { background: 'var(--gold)', color: 'var(--ink)' } },
+        ...mine.map((a) => el('span', { class: 'chip', 'data-tip': a.detail || a.hint, style: { background: 'var(--gold)', color: 'var(--ink)' } },
           `${a.icon} ${a.label}`))));
     }
-    if (me.isHost) {
-      kids.push(el('button', {
+    kids.push(me.isHost
+      ? el('button', {
         class: 'btn big block',
         onclick: (e) => { press(e.currentTarget); audio.play('ready'); net.send({ t: 'rematch' }); },
-      }, 'Revanche 🔁'));
-    } else {
-      kids.push(el('p', { style: { textAlign: 'center', color: 'var(--muted)', fontSize: '.9rem' } },
+      }, 'Revanche 🔁')
+      : el('p', { style: { textAlign: 'center', color: 'var(--muted)', fontSize: '.9rem' } },
         'Der Gastgeber kann eine Revanche starten.'));
-    }
-    main.replaceChildren(el('div', { class: 'grow' }, ...kids));
+    main.replaceChildren(el('div', { class: 'grow' }, ...kids.filter(Boolean)));
   },
 
   wait() {
     const text = WAIT_TEXT[state?.phase] || 'Gleich geht es weiter …';
     main.replaceChildren(el('div', { class: 'grow', style: { textAlign: 'center' } },
       el('div', { style: { fontSize: '2.4rem' } }, '👀'),
-      el('h1', { class: 'display', style: { fontSize: '1.2rem' } }, text),
-      el('p', { style: { color: 'var(--muted)', fontSize: '.88rem' } }, 'Schau auf den großen Screen.'),
-      chatLog()));
+      el('h1', { class: 'display', style: { fontSize: '1.25rem' } }, text),
+      el('p', { style: { color: 'var(--muted)', fontSize: '.88rem' } }, waitDetail())));
   },
 };
 
@@ -498,7 +581,6 @@ const WAIT_TEXT = {
   round_intro: 'Neue Runde',
   reveal: 'Auflösung läuft',
   round_end: 'Runde vorbei',
-  vote_reveal: 'Die Stimmen werden ausgezählt',
   tiebreak: 'Blitz-Stechen läuft',
   tiebreak_reveal: 'Auflösung',
   elimination: 'Gleich fällt es',
@@ -508,44 +590,63 @@ const WAIT_TEXT = {
   final_reveal: 'Auflösung',
 };
 
+function waitDetail() {
+  if (state?.phase === 'final_question' && state.final) {
+    const [a, b] = state.final.players.map(byId);
+    return `${a?.nick} ${state.final.scores[a?.id] ?? 0} : ${state.final.scores[b?.id] ?? 0} ${b?.nick}`;
+  }
+  return 'Kurz durchatmen.';
+}
+
 const UPDATE = {
   lobby() { SCREENS.lobby(); },
   question() {
     const me = state.you;
-    const cards = [...main.querySelectorAll('.answer')];
-    const revealing = Boolean(state.reveal);
-    for (const card of cards) {
-      const i = Number(card.dataset.i);
-      card.classList.toggle('locked', me.choice === i && !revealing);
-      card.classList.toggle('dim', (me.choice != null && me.choice !== i && !revealing) || (revealing && i !== state.reveal.correct));
-      card.classList.toggle('right', revealing && i === state.reveal.correct);
-      card.classList.toggle('wrongpick', revealing && me.choice === i && i !== state.reveal.correct);
-      card.disabled = revealing || undefined;
-    }
+    const field = $('#answerField');
     const status = $('#answerStatus');
-    if (!status) return;
+    const revealing = Boolean(state.reveal);
+    if (!field || !status) return;
+
     if (revealing) {
+      field.disabled = true;
+      field.classList.remove('urgent');
+      field.classList.toggle('locked', Boolean(me.wasRight));
       status.className = `status ${me.wasRight ? '' : 'bad'}`;
-      status.textContent = me.choice == null ? 'Nicht geantwortet.' : me.wasRight ? 'Richtig!' : 'Daneben.';
-    } else if (me.choice != null) {
+      status.textContent = !me.answer ? 'Nichts geschrieben.' : me.wasRight ? 'Richtig!' : 'Daneben.';
+      const slot = $('#solutionSlot');
+      if (slot && !slot.childElementCount) {
+        slot.append(el('div', { class: 'solution' },
+          `Richtig war: ${state.reveal.answer}`,
+          state.reveal.potDelta ? el('small', {}, `+${state.reveal.potDelta.toLocaleString('de-DE')} in den Pott`) : null));
+      }
+      return;
+    }
+
+    field.disabled = false;
+    field.classList.toggle('locked', Boolean(me.answer));
+    if (me.answer) {
       status.className = 'status';
-      status.textContent = '✓ Eingeloggt — umentscheiden geht noch.';
+      status.textContent = '✓ Abgeschickt — ändern geht bis zum Schluss.';
     } else {
       status.className = 'status wait';
-      status.textContent = 'Tippe deine Antwort.';
+      status.textContent = 'Schreib die Antwort — Zeit läuft.';
     }
   },
   voting() {
     const status = $('#voteStatus');
-    const send = $('#sendVote');
-    if (state.you.vote) {
-      if (status) { status.className = 'status'; status.textContent = '✉️ Deine Stimme ist im Umschlag.'; }
-      if (send) { send.disabled = true; send.textContent = 'Abgegeben ✓'; }
-      main.querySelectorAll('.cand').forEach((c) => { c.disabled = true; });
-    }
     const info = state.voting;
-    if (info && status && !state.you.vote) {
-      status.textContent = `${info.voted}/${info.total} haben abgestimmt`;
+    const mine = state.you.vote?.ballotId;
+    if (mine) {
+      main.querySelectorAll('.answercard').forEach((c) => {
+        c.classList.toggle('on', c.dataset.id === mine);
+        c.disabled = true;
+      });
+    }
+    if (status && info) {
+      status.className = mine ? 'status' : 'status wait';
+      status.textContent = mine
+        ? `✉️ Stimme ist drin — ${info.voted}/${info.total} haben gewählt`
+        : `${info.voted}/${info.total} haben gewählt`;
     }
   },
   guess() {
@@ -555,42 +656,33 @@ const UPDATE = {
       status.textContent = `Getippt: ${state.you.guess}`;
     }
   },
-  ghost() { /* Vorhersage-Markierung kommt über den Rebuild */ },
-  wait() {},
+  voteReveal() {},
+  ghost() {},
+  wait() { const p = main.querySelector('p'); if (p) p.textContent = waitDetail(); },
   results() {},
   draft() {},
 };
 
-function stat(key, value) {
-  return el('div', { class: 'statrow' }, el('span', { class: 'k' }, key), el('span', { class: 'v' }, value));
+const byId = (pid) => state?.players.find((p) => p.id === pid);
+const stat = (key, value) => el('div', { class: 'statrow' }, el('span', { class: 'k' }, key), el('span', { class: 'v' }, value));
+
+// ------------------------------------------------------------------ Antwort senden
+
+/**
+ * Getippt wird laufend, gesendet gedrosselt: Wenn der Timer abläuft, während
+ * jemand noch tippt, ist der letzte Zwischenstand trotzdem beim Server.
+ */
+function scheduleSend(text) {
+  clearTimeout(answerTimer);
+  answerTimer = setTimeout(() => sendAnswer(text, false), 320);
 }
 
-function hostSettings() {
-  const s = state.settings;
-  const patch = (partial) => net.send({ t: 'settings', settings: partial });
-  const group = (label, children) => el('div', { class: 'group' }, el('span', { class: 'label' }, label), el('div', { class: 'chips' }, ...children));
-
-  return el('div', { class: 'settings' },
-    group('Tempo', Object.entries(config.pace || {}).map(([key, meta]) => el('button', {
-      class: `chip${s.pace === key ? ' on' : ''}`, type: 'button',
-      onclick: () => { audio.play('tap'); patch({ pace: key }); },
-    }, meta.label))),
-    group('Kategorien', Object.entries(CATEGORY_META).map(([key, meta]) => el('button', {
-      class: `chip${s.categories.includes(key) ? ' on' : ''}`, type: 'button',
-      onclick: () => {
-        const next = s.categories.includes(key) ? s.categories.filter((c) => c !== key) : [...s.categories, key];
-        if (!next.length) return toast('Mindestens eine Kategorie.', 'error');
-        audio.play('tap');
-        patch({ categories: next });
-      },
-    }, `${meta.icon} ${meta.label}`))),
-    group('Voting', [
-      el('button', { class: `chip${s.anonymousVoting ? ' on' : ''}`, type: 'button', onclick: () => patch({ anonymousVoting: true }) }, 'Anonym'),
-      el('button', { class: `chip${!s.anonymousVoting ? ' on' : ''}`, type: 'button', onclick: () => patch({ anonymousVoting: false }) }, 'Klartext'),
-    ]),
-    group('Moderator', [['charmant', 'Charmant'], ['bissig', 'Bissig'], ['gnadenlos', 'Gnadenlos']].map(([key, label]) =>
-      el('button', { class: `chip${s.tone === key ? ' on' : ''}`, type: 'button', onclick: () => { audio.play('tap'); patch({ tone: key }); } }, label))),
-  );
+function sendAnswer(text, loud) {
+  clearTimeout(answerTimer);
+  const value = String(text || '').trim();
+  if (!value) return;
+  net.send({ t: 'answer', text: value });
+  if (loud) { audio.play('lock'); buzz(BUZZ.lock); }
 }
 
 // ------------------------------------------------------------------ Flash
@@ -599,7 +691,6 @@ function handleFlash() {
   const me = state.you;
   if (!me) return;
   const flash = $('#flash');
-
   let key = null;
   let content = null;
 
@@ -608,34 +699,25 @@ function handleFlash() {
     const brokeChain = state.reveal.breakers?.includes(me.id) && state.reveal.chainBroken;
     if (brokeChain) {
       content = { cls: 'ice', big: '🥶', sub: 'Du hast die Kette gebrochen.' };
-      audio.play('freeze');
-      buzz(BUZZ.chainBreak);
+      audio.play('freeze'); buzz(BUZZ.chainBreak);
     } else if (me.wasRight) {
-      const delta = state.reveal.potDelta && !state.final
-        ? `+${(state.question.value * state.reveal.chainBefore).toLocaleString('de-DE')} in den Pott`
-        : 'Punkt für dich';
-      content = { cls: 'good', big: 'Richtig!', sub: delta };
-      audio.play('correct');
-      buzz(BUZZ.correct);
+      content = { cls: 'good', big: 'Richtig!', sub: state.reveal.potDelta ? `+${(state.question.value * state.reveal.chainBefore).toLocaleString('de-DE')} in den Pott` : 'Punkt für dich' };
+      audio.play('correct'); buzz(BUZZ.correct);
     } else {
-      content = { cls: 'bad', big: 'Daneben.', sub: `Richtig war: ${state.reveal.correctText}` };
-      audio.play('wrong');
-      buzz(BUZZ.wrong);
+      content = { cls: 'bad', big: 'Daneben.', sub: `Richtig war: ${state.reveal.answer}` };
+      audio.play('wrong'); buzz(BUZZ.wrong);
     }
   } else if (state.phase === 'elimination') {
     key = `elim:${state.round}`;
     const hit = (state.eliminated || []).includes(me.id);
     content = hit
-      ? { cls: 'out', big: 'DU FLIEGST!', sub: 'Willkommen in der Geisterzone.' }
+      ? { cls: 'out', big: 'DU FLIEGST!', sub: 'Deine Antwort war der Runde zu dumm.' }
       : { cls: 'stay', big: 'Du bleibst.', sub: 'Vorerst.' };
-    if (hit) { audio.play('eliminate'); buzz(BUZZ.eliminated); }
-    else { audio.play('toast'); }
+    if (hit) { audio.play('eliminate'); buzz(BUZZ.eliminated); } else audio.play('toast');
   } else if (state.phase === 'results' && state.results.winnerId === me.id) {
     key = 'win';
     content = { cls: 'gold', big: '👑 Gewonnen!', sub: `${state.results.pot.toLocaleString('de-DE')} Punkte gehören dir.` };
-    audio.play('fanfare');
-    buzz(BUZZ.win);
-    fx.confetti({ count: 120 });
+    audio.play('fanfare'); buzz(BUZZ.win); fx.confetti({ count: 120 });
   }
 
   if (!key || key === lastFlashKey) {
@@ -648,11 +730,11 @@ function handleFlash() {
   flash.replaceChildren(el('div', {},
     el('div', { class: 'big' }, content.big),
     el('div', { class: 'sub' }, content.sub)));
-  const hold = state.phase === 'elimination' ? 4200 : state.phase === 'results' ? 5200 : 2400;
+  const hold = state.phase === 'elimination' ? 3800 : state.phase === 'results' ? 4600 : 1900;
   setTimeout(() => { if (lastFlashKey === key) flash.hidden = true; }, hold);
 }
 
-// ------------------------------------------------------------------ Chat
+// ------------------------------------------------------------------ Chat & Tasten
 
 function buildFooter() {
   $('#chatbar').addEventListener('submit', (event) => {
@@ -663,12 +745,10 @@ function buildFooter() {
     net.send({ t: 'chat', text });
     input.value = '';
     audio.play('tap');
-    buzz(BUZZ.tap);
   });
 
-  const host = $('#emojis');
-  host.replaceChildren(...EMOJIS.map((emoji) => el('button', {
-    type: 'button',
+  $('#emojis').replaceChildren(...EMOJIS.map((emoji) => el('button', {
+    type: 'button', title: 'Auf die Bühne werfen',
     onclick: (event) => {
       net.send({ t: 'emoji', emoji });
       audio.play('emoji');
@@ -678,31 +758,62 @@ function buildFooter() {
       setTimeout(() => { btn.disabled = false; }, 800);
     },
   }, emoji)));
+
+  $('#settingsBtn').addEventListener('click', () => {
+    audio.init();
+    openSettings(buildSettings());
+  });
 }
 
-function chatLog() {
-  const log = $('#chatlog') || el('div', { class: 'chatlog', id: 'chatlog' });
-  if (!log.childElementCount && state?.chat?.length) appendChat(state.chat, log);
-  return log;
+function wireGlobalKeys() {
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    // Escape ist der schnellste Weg zu Lautstärke und Regeln — und wieder zurück.
+    if (settingsOpen()) closeSettings();
+    else { audio.init(); openSettings(buildSettings()); }
+  });
 }
 
-function appendChat(entries, target) {
-  const log = target || $('#chatlog');
+function appendChat(entries) {
+  const log = $('#chatlog');
   if (!log) return;
   for (const entry of entries) {
     log.append(el('div', { class: `chat-line${entry.ghost ? ' ghost' : ''}` },
       el('span', { class: 'nick' }, `${entry.nick}:`), el('span', {}, entry.text)));
   }
-  while (log.children.length > 40) log.firstElementChild.remove();
+  while (log.children.length > 60) log.firstElementChild.remove();
   log.scrollTop = log.scrollHeight;
+}
+
+async function copyInvite() {
+  const url = `${location.origin}/join/${state?.code || roomCode}`;
+  try {
+    await navigator.clipboard.writeText(url);
+    toast('Link kopiert!');
+  } catch {
+    toast(url);
+  }
+}
+
+/** Was im Einstellungs-Fenster steht — Spielregler nur für den Gastgeber. */
+function buildSettings() {
+  const canConfigure = state?.you?.isHost && state.phase === 'lobby';
+  return {
+    net,
+    code: state?.code || roomCode,
+    settings: state?.settings,
+    categories: CATEGORY_META,
+    pace: config?.pace,
+    canConfigure,
+    onLeave: () => { session.clear(); location.href = '/'; },
+    onCopy: copyInvite,
+  };
 }
 
 // ------------------------------------------------------------------ Bildschirm wach halten
 
 async function requestWakeLock() {
-  try {
-    wakeLock = await navigator.wakeLock?.request('screen');
-  } catch { /* nicht unterstützt oder abgelehnt */ }
+  try { wakeLock = await navigator.wakeLock?.request('screen'); } catch { /* nicht unterstützt */ }
 }
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') {

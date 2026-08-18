@@ -62,58 +62,75 @@ async function main() {
     page.on('pageerror', (err) => problems.push(`[${label}] Ausnahme: ${err.message}`));
   };
 
-  // --- Bühne ---------------------------------------------------------
-  const stageCtx = await browser.newContext({ viewport: { width: 1440, height: 810 }, deviceScaleFactor: JPEG ? 1 : 2 });
-  const stage = await stageCtx.newPage();
-  watch(stage, 'Bühne');
-  await stage.goto(`${BASE}/host`, { waitUntil: 'domcontentloaded' });
-  await stage.click('#soundStart');
-  await stage.waitForFunction(() => document.querySelector('#codeChip')?.textContent?.length === 4, null, { timeout: 10000 });
-  const code = await stage.textContent('#codeChip');
-  console.log(`  Raum-Code: ${code}`);
-
   const shot = async (page, name) => {
     const path = join(SHOTS, `${name}.${JPEG ? 'jpg' : 'png'}`);
-    await page.screenshot(JPEG ? { path, type: 'jpeg', quality: 82 } : { path });
+    await page.screenshot({ path });
     shots.push(path);
   };
 
-  // --- Handys --------------------------------------------------------
-  const phones = [];
+  const desktop = () => browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: JPEG ? 1 : 2 });
+  const phone = () => browser.newContext({
+    viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true,
+    deviceScaleFactor: JPEG ? 1 : 2,
+  });
+
   const names = ['Lena', 'Basti', 'Aylin', 'Jonas'];
+  const phones = [];
+  let code = null;
+
+  // --- Spieler 1 erstellt die Lobby am PC und spielt im selben Fenster mit --
   for (let i = 0; i < PLAYERS; i++) {
-    const ctx = await browser.newContext({
-      viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true,
-      deviceScaleFactor: JPEG ? 1 : 2,
-    });
+    const onPhone = i === PLAYERS - 1;         // einer spielt am Handy mit
+    const ctx = await (onPhone ? phone() : desktop());
     const page = await ctx.newPage();
     watch(page, names[i]);
-    await page.goto(`${BASE}/join/${code}`, { waitUntil: 'domcontentloaded' });
+
+    if (i === 0) {
+      await page.goto(`${BASE}/play?neu=1`, { waitUntil: 'domcontentloaded' });
+    } else {
+      await page.goto(`${BASE}/join/${code}`, { waitUntil: 'domcontentloaded' });
+    }
+
     await page.fill('input[placeholder="Dein Name"]', names[i]);
-    // Figur und Farbe variieren, damit die Bühne unterscheidbare Avatare zeigt.
     const faces = await page.$$('.builder > div:nth-child(1) .opt');
     await faces[(i * 3 + 1) % faces.length].click();
     const colors = await page.$$('.builder > div:nth-child(2) .opt');
     await colors[(i * 2 + 1) % colors.length].click();
-    if (i === 0) {
-      const hats = await page.$$('.builder > div:nth-child(3) .opt');
-      await hats[1].click();
-    }
-    if (i === 1) await shot(page, '02-controller-beitritt');
+    const hats = await page.$$('.builder > div:nth-child(3) .opt');
+    await hats[1 + (i % 3)].click();
+    if (i === 1) await shot(page, '02-beitritt');
+
     await page.click('button[type="submit"]');
-    await page.waitForSelector('#readyBtn', { timeout: 8000 });
+    await page.waitForSelector('#readyBtn', { timeout: 10000 });
     phones.push(page);
-    await sleep(220);
+
+    if (i === 0) {
+      code = await page.evaluate(() => location.pathname.split('/').pop());
+      console.log(`  Lobby am PC erstellt: ${code}`);
+      if (!/^[A-Z]{4}$/.test(code || '')) problems.push(`Kein gültiger Raum-Code: ${code}`);
+    }
+    await sleep(200);
   }
 
-  await sleep(700);
+  // --- Bühne als Zweitschirm dazu ----------------------------------------
+  const stageCtx = await desktop();
+  const stage = await stageCtx.newPage();
+  watch(stage, 'Bühne');
+  await stage.goto(`${BASE}/watch/${code}`, { waitUntil: 'domcontentloaded' });
+  await stage.click('#soundStart');
+  await sleep(600);
   await shot(stage, '01-buehne-lobby');
+  await shot(phones[0], '03-pc-lobby');
+
+  // Einstellungen einmal öffnen — Ton regeln und wieder schließen.
+  await phones[0].click('#settingsBtn');
+  await sleep(400);
+  await shot(phones[0], '15-einstellungen');
+  await phones[0].keyboard.press('Escape');
+  await sleep(250);
 
   for (const page of phones) await page.click('#readyBtn');
   await sleep(400);
-  await shot(phones[1], '03-controller-lobby');
-
-  // Gastgeber ist der erste Spieler.
   await phones[0].click('button:has-text("Spiel starten")');
 
   // --- Partie mitspielen ---------------------------------------------
@@ -131,25 +148,23 @@ async function main() {
     const phase = await stage.evaluate(() => document.body.dataset.phase);
 
     if (phase === 'question' || phase === 'final_question') {
-      // Auch hier erst fotografieren: Sobald alle geantwortet haben, blendet
-      // der Controller sein persönliches Ergebnis vollflächig ein.
       if (!sawQuestion) {
         await sleep(400);
         await shot(stage, '04-buehne-frage');
-        await shot(phones[0], '05-controller-frage');
+        await shot(phones[0], '05-pc-frage');
         sawQuestion = true;
       }
       for (const [index, page] of phones.entries()) {
-        // Alle Handys liegen unter derselben URL — der Schlüssel muss darum
-        // den Spieler enthalten, sonst antwortet nur das erste Gerät.
         const question = await page.evaluate(() => document.querySelector('.qtext')?.textContent || '');
         const key = `${index}:${phase}:${question}`;
         if (!question || answered.has(key)) continue;
-        const buttons = await page.$$('.answer:not([disabled])');
-        if (buttons.length) {
-          await buttons[Math.floor(Math.random() * buttons.length)].click().catch(() => {});
-          answered.add(key);
-        }
+        const field = await page.$('#answerField:not([disabled])');
+        if (!field) continue;
+        // Frei getippter Unsinn — genau der Stoff, aus dem der Stimmzettel wird.
+        const silly = ['Banane', 'Keine Ahnung', 'Dein Vater', '42', 'Käse', 'Ottokar'];
+        await field.fill(silly[(index + answered.size) % silly.length]).catch(() => {});
+        await field.press('Enter').catch(() => {});
+        answered.add(key);
       }
     }
 
@@ -159,26 +174,18 @@ async function main() {
     }
 
     if (phase === 'voting') {
-      // Erst fotografieren, dann abstimmen: Sobald alle Stimmen drin sind,
-      // zieht der Server nach gut einer Sekunde weiter.
       if (!sawVoting) {
         await sleep(400);
         await shot(stage, '07-buehne-voting');
-        await shot(phones[2], '08-controller-voting');
+        await shot(phones[2], '08-pc-voting');
         sawVoting = true;
       }
       for (const page of phones) {
-        // Der Controller sagt selbst, ob die Stimme schon draußen ist —
-        // damit braucht es keine Runden-Buchführung im Test.
         const status = await page.textContent('#voteStatus').catch(() => null);
-        if (status === null || status.includes('Umschlag')) continue;
-        const cands = await page.$$('.cand:not([disabled])');
-        if (!cands.length) continue;
-        await cands[Math.floor(Math.random() * cands.length)].click().catch(() => {});
-        const chips = await page.$$('.chips .chip');
-        if (chips.length) await chips[Math.floor(Math.random() * chips.length)].click().catch(() => {});
-        const send = await page.$('#sendVote');
-        if (send && await send.isEnabled()) await send.click().catch(() => {});
+        if (status === null || status.includes('Stimme ist drin')) continue;
+        const cards = await page.$$('.answercard:not([disabled])');
+        if (!cards.length) continue;
+        await cards[Math.floor(Math.random() * cards.length)].click().catch(() => {});
       }
     }
 
@@ -198,7 +205,7 @@ async function main() {
     if (!sawGhost && ['round_intro', 'question'].includes(phase)) {
       for (const page of phones) {
         if (await page.$('.ghostbox')) {
-          await shot(page, '14-controller-geist');
+          await shot(page, '14-pc-geist');
           sawGhost = true;
           break;
         }
@@ -243,7 +250,7 @@ async function main() {
     if (phase === 'results') {
       await sleep(1800);
       await shot(stage, '12-buehne-ergebnis');
-      await shot(phones[0], '13-controller-ergebnis');
+      await shot(phones[0], '13-pc-ergebnis');
       break;
     }
 
@@ -256,7 +263,7 @@ async function main() {
   // Falls die Geisterzone im Spielverlauf nie erwischt wurde, hier nachholen.
   if (!sawGhost) {
     for (const page of phones) {
-      if (await page.$('.ghostbox')) { await shot(page, '14-controller-geist'); break; }
+      if (await page.$('.ghostbox')) { await shot(page, '14-pc-geist'); break; }
     }
   }
 

@@ -8,7 +8,7 @@ import { rooms } from './rooms.js';
 import { AVATAR_PARTS } from './room.js';
 import { questions } from './questions/index.js';
 import { poolSize } from './moderator/index.js';
-import { CONFIG, CATEGORIES, REASON_CHIPS } from './config.js';
+import { CONFIG, CATEGORIES } from './config.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PUBLIC = join(ROOT, 'public');
@@ -89,7 +89,6 @@ const server = createServer((req, res) => {
       categories: CATEGORIES,
       pace: CONFIG.pace,
       avatars: AVATAR_PARTS,
-      chips: REASON_CHIPS,
       minPlayers: CONFIG.minPlayers,
       maxPlayers: CONFIG.maxPlayers,
     });
@@ -158,6 +157,18 @@ function handleMessage(conn, msg) {
   // --- Sitzungsaufbau -------------------------------------------------
   if (msg.t === 'createRoom') {
     const room = rooms.create();
+    // Am PC erstellt man die Lobby und spielt im selben Fenster mit. Ohne
+    // Namen bleibt es die reine Bühne für einen geteilten Bildschirm.
+    if (msg.nick) {
+      const { player, error } = room.addPlayer({ nick: msg.nick, avatar: msg.avatar });
+      if (error) return conn.send({ t: 'error', msg: error });
+      conn.role = 'player';
+      room.attach(conn);
+      room.bind(conn, player);
+      conn.send({ t: 'joined', code: room.code, playerId: player.id, token: player.token, created: true });
+      room.broadcast();
+      return;
+    }
     conn.role = 'stage';
     room.attach(conn);
     conn.send({ t: 'room', code: room.code });

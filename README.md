@@ -1,6 +1,8 @@
 # KICKED OUT — Der Dümmste fliegt 🚪💨
 
-Ein Browser-Partyquiz für **4–9 echte Menschen** in Echtzeit, gebaut nach dem Jackbox-Prinzip: Ein großer Screen ist die Bühne, jedes Smartphone wird zum persönlichen Buzzer. Kein Download, keine Accounts, keine KI-Mitspieler — nur ein bissiger KI-Moderator, der die Rauswürfe kommentiert.
+Ein Browser-Partyquiz für **2–9 echte Menschen** in Echtzeit. Jede Antwort wird **frei getippt** — keine Auswahlmöglichkeiten, kein Raten per Klick. Unter Zeitdruck entstehen genau die Antworten, um die es eigentlich geht, und am Ende jeder Runde wählt die Runde die **dümmste**. Wer sie geschrieben hat, fliegt.
+
+Läuft am PC genauso wie am Handy: Wer die Lobby erstellt, spielt im selben Fenster mit. Kein Download, keine Accounts, keine KI-Mitspieler — nur ein bissiger KI-Moderator, der die Rauswürfe kommentiert.
 
 ```
 git clone https://github.com/Trikophalo/KickedOut.git
@@ -9,22 +11,22 @@ npm install
 npm start
 ```
 
-Dann am großen Screen `http://localhost:3000/host` öffnen, und alle anderen scannen den QR-Code. Im WLAN erreichen die Handys den Server unter der lokalen IP des Hosts (z. B. `http://192.168.1.42:3000`) — der QR-Code auf der Bühne zeigt genau diese Adresse an.
+Dann `http://localhost:3000` öffnen → **Lobby erstellen** → den Link an die Mitspieler schicken. Jeder spielt in seinem eigenen Fenster; am PC steht dabei alles auf einem Bildschirm (Frage, Eingabe, Mitspieler, Chat).
+
+Sitzt ihr im selben Raum an einem Fernseher? Dann zusätzlich `http://localhost:3000/host` als gemeinsame Bühne öffnen — dort erscheint ein QR-Code, den die Handys scannen.
 
 ---
 
 ## So sieht das aus
 
-| Bühne (der große Screen) | Handy (der Controller) |
+| Am PC — alles auf einem Bildschirm | Auf dem großen Screen |
 |---|---|
-| ![Lobby mit Raum-Code und QR-Code](docs/screenshots/01-buehne-lobby.jpg) | ![Figur bauen beim Beitreten](docs/screenshots/02-controller-beitritt.jpg) |
-| **Lobby** — Raum-Code, QR und die Runde füllt sich | **Beitritt** — Name und Figur in zehn Sekunden |
-| ![Auflösung mit Avataren auf den Antworten](docs/screenshots/06-buehne-aufloesung.jpg) | ![Vollflächiges persönliches Ergebnis](docs/screenshots/05-controller-frage.jpg) |
-| **Auflösung** — die Avatare springen auf ihre Wahl | **Fragerunde** — vier Buttons, sonst nichts |
-| ![Anonymes Voting mit Rundenbilanz](docs/screenshots/07-buehne-voting.jpg) | ![Voting mit Kandidat und Pflicht-Begründung](docs/screenshots/08-controller-voting.jpg) |
-| **Voting** — Bilanz sichtbar, Stimmen nicht | **Abstimmen** — ohne Begründung geht der Knopf nicht auf |
-| ![Rausschmiss mit Spotlight und Stempel](docs/screenshots/10-buehne-rausschmiss.jpg) | ![Geisterzone mit Chat und Prophezeiungen](docs/screenshots/14-controller-geist.jpg) |
-| **Rausschmiss** — Spotlight, Stempel, Katapult | **Geisterzone** — raus, aber nicht weg |
+| ![Fragerunde am PC: Frage, Eingabefeld, Mitspielerliste und Chat](docs/screenshots/05-pc-frage.jpg) | ![Bühne während der Fragerunde](docs/screenshots/04-buehne-frage.jpg) |
+| **Fragerunde** — tippen statt klicken, Mitspieler und Chat rechts | **Bühne** — wer schon fertig ist, sieht man; was er schrieb, nicht |
+| ![Voting über die dümmste Antwort](docs/screenshots/08-pc-voting.jpg) | ![Auflösung mit allen Antworten](docs/screenshots/06-buehne-aufloesung.jpg) |
+| **Voting** — welche Antwort war die dümmste? | **Auflösung** — jetzt liegt alles offen |
+| ![Einstellungen mit Lautstärkereglern](docs/screenshots/15-einstellungen.jpg) | ![Rausschmiss mit Spotlight und Stempel](docs/screenshots/10-buehne-rausschmiss.jpg) |
+| **Einstellungen** — Zahnrad oder Escape | **Rausschmiss** — Spotlight, Stempel, Katapult |
 
 <sub>Screenshots automatisch erzeugt von `scripts/browsertest.js`, das eine komplette Partie in echtem Chromium durchspielt. Die Schrift ist hier die Fallback-Variante — in der Sandbox war Google Fonts nicht erreichbar.</sub>
 
@@ -34,24 +36,28 @@ Dann am großen Screen `http://localhost:3000/host` öffnen, und alle anderen sc
 
 | Phase | Was passiert |
 |---|---|
-| **Lobby** | Raum-Code und QR-Code auf der Bühne. Alle bauen sich in zehn Sekunden eine Figur. |
-| **Fragerunde** | 7 Fragen, **alle antworten gleichzeitig**. Beim Reveal springen die Avatare auf die Option, die sie gewählt haben — man sieht sofort, wer „Sydney" für Australiens Hauptstadt hielt. |
+| **Lobby** | Wer erstellt, bekommt einen Code zum Weitergeben. Alle bauen sich in zehn Sekunden eine Figur — Accessoire sitzt mittig auf dem Kopf. |
+| **Fragerunde** | 5 Fragen, **alle tippen gleichzeitig**. Die Bewertung verzeiht Tippfehler, Buchstabendreher, fehlende Umlaute und Artikel — aber keine falsche Antwort. Beim Reveal liegt alles offen: Man sieht sofort, wer „Käse" für die chemische Formel von Wasser hielt. |
 | **Kette & Pott** | Jede richtige Antwort zahlt `Wert × Multiplikator` in den gemeinsamen Pott. Beantworten **alle** eine Frage richtig, wird ein Kettenglied geschmiedet (bis ×5). **Eine einzige falsche Antwort friert die Kette ein** — Frost, Splittern, zurück auf ×1. Und alle sehen, wer schuld war. |
-| **Voting** | Anonym, mit **Pflicht-Begründung**. Ohne Begründung geht der Absenden-Knopf nicht auf. |
-| **Rausschmiss** | Vote-Karten fliegen einzeln ein, Begründungen erscheinen als anonyme Sprechblasen, der Moderator liest die beste vor — dann Spotlight, Stempel **„DU FLIEGST!"**, Katapult. |
+| **Voting** | Pro Spieler landet **eine Antwort** auf dem Stimmzettel — bevorzugt eine falsche. Man wählt die dümmste; die eigene ist gesperrt. Auf dem Zettel stehen keine Namen, die fallen erst bei der Auszählung. |
+| **Rausschmiss** | Die Stimmen tropfen einzeln auf die Karten, dann fallen die Namen — und die meistgewählte Antwort kostet ihren Urheber den Platz. Spotlight, Stempel **„DU FLIEGST!"**, Katapult. |
 | **Geisterzone** | Rausgeflogene bleiben im Spiel: Chat, Emoji-Regen auf die Bühne und Prophezeiungen, wer als Nächstes fliegt. |
-| **Finale** | Die letzten zwei duellieren sich Best-of-5. Kategorien-Draft, beide richtig → der Schnellere punktet. Frage 5 ist immer „Chaos". |
+| **Finale** | Die letzten zwei duellieren sich Best-of-5. Kategorien-Draft, beide richtig → der Schnellere punktet. Frage 5 ist immer „Chaos". **Zu zweit** geht es sofort hierhin — ohne Rausschmiss, direkt ins Duell. |
 | **Ergebnis** | Krönung mit Konfetti (die Menge skaliert mit dem Pott), Awards, Highlight-Recap, Revanche-Knopf. |
 
 Bei 8–9 Spielern fliegen in den ersten Runden zwei auf einmal — so bleibt der Abend bei 25–40 Minuten.
+
+**Einstellungen** öffnet das Zahnrad oder **Escape**: Musik und Effekte getrennt regelbar, alles stummschaltbar, Vollbild — und für den Gastgeber Tempo, Kategorien und Moderator-Härtegrad.
 
 ---
 
 ## Was das Spiel besonders macht
 
-**Die Spoiler-Schleuse.** Solange das Antwortfenster offen ist, werden Chat-Nachrichten lebender Spieler serverseitig gepuffert und erst beim Reveal gesammelt freigelassen. Niemand kann „C!!!" vorsagen — und der Nachrichtenschwall zur Auflösung ist ein eigener Comedy-Beat. Geister reden ungebremst weiter.
+**Freitext, der nicht nervt.** Die Bewertung nutzt Damerau-Levenshtein, versteht `ä`→`ae` genauso wie `ä`→`a`, wirft Artikel und Füllwörter weg, kennt ausgeschriebene Zahlen und lässt bei mehrwortigen Lösungen den Nachnamen genügen. „Zürcih", „W. A. Mozart" und „acht" zählen. „Meiose" statt „Mitose" nicht — sonst wäre der Zeitdruck weg, aus dem die lustigen Antworten entstehen.
 
-**Der Moderator wiederholt sich nie.** 624 Sprüche über 19 Situationen und drei Härtegrade (charmant / bissig / gnadenlos), mit Verbraucht-Set pro Lobby. Allein für den Rausschmiss stehen 96 Zeilen bereit — Bahnhofsdurchsage, Wetterbericht, Nachruf, Behördendeutsch.
+**Die Spoiler-Schleuse.** Solange das Antwortfenster offen ist, sieht niemand, was die anderen tippen — die Bühne zeigt nur, wer schon fertig ist. Chat-Nachrichten lebender Spieler werden serverseitig gepuffert und erst beim Reveal gesammelt freigelassen. Geister reden ungebremst weiter.
+
+**Der Moderator wiederholt sich nie.** 624 Sprüche über 19 Situationen und drei Härtegrade (charmant / bissig / gnadenlos), mit Verbraucht-Set pro Lobby. Allein für den Rausschmiss stehen 96 Zeilen bereit — Bahnhofsdurchsage, Wetterbericht, Nachruf, Behördendeutsch. Am Rundenende liest er die kurioseste Antwort vor.
 
 **Fragen sind Frischware.** Ein kuratierter Grundstock von 180 Fragen ist immer da; im Hintergrund erzeugt eine Pipeline laufend neue aus **Wikidata**-Fakten-Tripeln mit deutschen Labels. Wiederholungsfreiheit über drei Ebenen: Session-Sperre, 90-Tage-Gruppengedächtnis und Fakten-Key-Cooldown (auch die *umgedrehte* Hauptstadt-Frage pausiert mit).
 
@@ -65,13 +71,14 @@ Bei 8–9 Spielern fliegen in den ersten Runden zwei auf einmal — so bleibt de
 
 | Adresse | Wofür |
 |---|---|
-| `/` | Einstieg: Bühne öffnen oder mit Code beitreten |
-| `/host` | Die Bühne (Fernseher, Beamer, Laptop) |
-| `/join/CODE` | Der Handy-Controller |
+| `/` | Einstieg: Lobby erstellen oder mit Code beitreten |
+| `/play?neu=1` | Lobby erstellen und direkt mitspielen |
+| `/join/CODE` | Mitspielen — am PC mit voller Ansicht, am Handy kompakt |
+| `/host` | Zusätzliche Bühne für einen geteilten Screen |
 | `/watch/CODE` | Bühne noch einmal öffnen — z. B. für einen zweiten Screen |
 | `/api/health` | Poolgesundheit, laufende Räume, Fragen-Statistik |
 
-Der **erste Spieler, der beitritt, ist der Gastgeber**: Er stellt Tempo, Kategorien, Voting-Modus und Moderator-Härtegrad auf seinem Handy ein, startet das Spiel und hat während einer Frage einen Notfallknopf („Frage ist kaputt"), der sie sofort austauscht und meldet.
+Wer die **Lobby erstellt, ist der Gastgeber**: Er stellt Tempo, Kategorien und Moderator-Härtegrad im Einstellungs-Fenster ein, startet das Spiel und hat während einer Frage einen Notfallknopf („Frage ist kaputt"), der sie sofort austauscht und meldet.
 
 ---
 
@@ -85,6 +92,7 @@ server/
   room.js           Autoritative Zustandsmaschine (alle 16 Phasen)
   config.js         Werte-Rampe, Timings, Rausschmiss-Plan
   questions/        Pool, Qualitätsprüfung, Wikidata, OpenTDB, LLM-Stufen
+    grade.js        Bewertung freier Texteingaben
   moderator/        624 Sprüche + Auswahl ohne Wiederholung
 public/
   host.html         Bühne          js/stage.js
@@ -92,6 +100,7 @@ public/
   js/audio.js       Synthesizer für alle Klänge und die Schichtenmusik
   js/fx.js          Konfetti, Funken, Emoji-Regen, Frost
   js/qr.js          QR-Encoder
+  js/settings.js    Einstellungs-Fenster (Zahnrad / Escape)
 scripts/
   selftest.js       Spielt eine Partie über WebSockets durch
   browsertest.js    Spielt eine Partie in echtem Chromium durch

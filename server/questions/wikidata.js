@@ -1,4 +1,4 @@
-import { shuffle, id as newId } from '../util.js';
+import { id as newId } from '../util.js';
 
 const ENDPOINT = 'https://query.wikidata.org/sparql';
 const UA = 'KickedOut-QuizPipeline/1.0 (https://github.com/Trikophalo/KickedOut)';
@@ -8,9 +8,8 @@ const UA = 'KickedOut-QuizPipeline/1.0 (https://github.com/Trikophalo/KickedOut)
  *
  * Der entscheidende Punkt: Wir übersetzen nicht und wir generieren nicht frei.
  * Wir ziehen verifizierte Fakten-Tripel mit deutschen Labels und formen daraus
- * per Template natürliche Fragen. Die Distraktoren stammen aus derselben
- * Entitätsklasse und werden gegen dieselbe Abfrage geprüft — sie sind damit
- * konstruktionsbedingt plausibel und sicher falsch.
+ * per Template natürliche Fragen. Die Richtigkeit ist damit konstruktions-
+ * bedingt gegeben.
  *
  * Prominenz (Anzahl der Wikipedia-Sprachversionen) dient als ehrlicher
  * Startwert für die Schwierigkeit; die empirische Kalibrierung korrigiert ihn.
@@ -33,36 +32,8 @@ function difficultyFromFame(sitelinks) {
   return 'schwer';
 }
 
-/** Drei Distraktoren aus dem Pool, möglichst aus derselben Prominenz-Liga. */
-function distractors(pool, correct, key) {
-  const near = pool
-    .filter((e) => e[key] !== correct[key])
-    .sort((a, b) => Math.abs(a.fame - correct.fame) - Math.abs(b.fame - correct.fame))
-    .slice(0, 14);
-  const seen = new Set([correct[key]]);
-  const out = [];
-  for (const cand of shuffle(near)) {
-    if (seen.has(cand[key])) continue;
-    seen.add(cand[key]);
-    out.push(cand[key]);
-    if (out.length === 3) break;
-  }
-  return out.length === 3 ? out : null;
-}
-
-function build(text, correctText, wrong, cat, diff, fact, cite) {
-  const options = [correctText, ...wrong];
-  return {
-    id: newId('wd-'),
-    cat,
-    diff,
-    text,
-    options,
-    correct: 0, // canonicalize() mischt später und korrigiert den Index
-    fact,
-    cite,
-    source: 'wikidata',
-  };
+function build(text, answer, cat, diff, fact, cite, accept = []) {
+  return { id: newId('wd-'), cat, diff, text, answer, accept, fact, cite, source: 'wikidata' };
 }
 
 const CAPITALS_QUERY = `
@@ -96,24 +67,17 @@ async function capitals(signal) {
 
   const out = [];
   for (const e of clean) {
-    const wrongCaps = distractors(clean, e, 'capital');
-    if (wrongCaps) {
-      out.push(build(
-        `Wie heißt die Hauptstadt von ${e.country}?`,
-        e.capital, wrongCaps, 'geografie', difficultyFromFame(e.fame),
-        `hauptstadt:${e.country.toLowerCase()}`,
-        'Wikidata P36',
-      ));
-    }
-    const wrongCountries = distractors(clean, e, 'country');
-    if (wrongCountries) {
-      out.push(build(
-        `${e.capital} ist die Hauptstadt welches Landes?`,
-        e.country, wrongCountries, 'geografie', difficultyFromFame(e.fame),
-        `hauptstadt:${e.country.toLowerCase()}`, // gleicher Fakten-Key: die Umkehrfrage pausiert mit
-        'Wikidata P36',
-      ));
-    }
+    out.push(build(
+      `Wie heißt die Hauptstadt von ${e.country}?`,
+      e.capital, 'geografie', difficultyFromFame(e.fame),
+      `hauptstadt:${e.country.toLowerCase()}`, 'Wikidata P36',
+    ));
+    out.push(build(
+      `${e.capital} ist die Hauptstadt welches Landes?`,
+      e.country, 'geografie', difficultyFromFame(e.fame),
+      // Gleicher Fakten-Key: die Umkehrfrage pausiert mit.
+      `hauptstadt:${e.country.toLowerCase()}`, 'Wikidata P36',
+    ));
   }
   return out;
 }
@@ -140,29 +104,20 @@ async function elements(signal) {
 
   // Ordnungszahl als Bekanntheits-Proxy: Die ersten 20 Elemente lernt jeder
   // in der Schule, ab den Lanthanoiden wird es Spezialwissen.
-  const withFame = list.map((e) => ({ ...e, fame: Math.max(0, 200 - e.number * 2) }));
   const diffOf = (n) => (n <= 20 ? 'leicht' : n <= 56 ? 'mittel' : 'schwer');
 
   const out = [];
-  for (const e of withFame) {
-    const wrongNames = distractors(withFame, e, 'name');
-    if (wrongNames) {
-      out.push(build(
-        `Welches chemische Element hat das Symbol „${e.symbol}“?`,
-        e.name, wrongNames, 'wissenschaft', diffOf(e.number),
-        `element:symbol-${e.symbol.toLowerCase()}`,
-        'Wikidata P246',
-      ));
-    }
-    const wrongSymbols = distractors(withFame, e, 'symbol');
-    if (wrongSymbols) {
-      out.push(build(
-        `Wie lautet das chemische Symbol für ${e.name}?`,
-        e.symbol, wrongSymbols, 'wissenschaft', diffOf(e.number),
-        `element:symbol-${e.symbol.toLowerCase()}`,
-        'Wikidata P246',
-      ));
-    }
+  for (const e of list) {
+    out.push(build(
+      `Welches chemische Element hat das Symbol „${e.symbol}“?`,
+      e.name, 'wissenschaft', diffOf(e.number),
+      `element:symbol-${e.symbol.toLowerCase()}`, 'Wikidata P246',
+    ));
+    out.push(build(
+      `Wie lautet das chemische Symbol für ${e.name}?`,
+      e.symbol, 'wissenschaft', diffOf(e.number),
+      `element:symbol-${e.symbol.toLowerCase()}`, 'Wikidata P246',
+    ));
   }
   return out;
 }

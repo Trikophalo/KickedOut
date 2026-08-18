@@ -8,7 +8,8 @@
 import { Net } from './net.js';
 import { audio } from './audio.js';
 import { fx, shake, countUp, setBackgroundMood } from './fx.js';
-import { $, el, avatarEl, applyAccent, Countdown, toast, ANSWER_GLYPHS, CATEGORY_META, formatMs } from './ui.js';
+import { $, el, avatarEl, applyAccent, Countdown, toast, CATEGORY_META, formatMs } from './ui.js';
+import { openSettings, closeSettings, settingsOpen, loadPrefs } from './settings.js';
 import { drawQR } from './qr.js';
 
 const net = new Net();
@@ -28,9 +29,26 @@ let joinUrl = '';
 $('#soundStart').addEventListener('click', () => {
   audio.init();
   audio.resume();
+  loadPrefs();
   $('#soundHint').remove();
   fx.mount($('#fx'));
   connect();
+});
+
+const stageSettings = () => openSettings({
+  code: state?.code,
+  onLeave: () => { location.href = '/'; },
+  onCopy: async () => {
+    try { await navigator.clipboard.writeText(joinUrl); toast('Link kopiert!'); }
+    catch { toast(joinUrl); }
+  },
+});
+
+$('#stageSettings').addEventListener('click', stageSettings);
+document.addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape') return;
+  if (settingsOpen()) closeSettings();
+  else stageSettings();
 });
 
 function connect() {
@@ -381,10 +399,17 @@ const BUILDERS = {
       setTimeout(() => spot.classList.add('gone'), 2400);
     }
     scene.append(wrap);
-    const tally = state.voteResult?.tally || {};
+    const cards = state.voteResult?.cards || [];
     setTimeout(() => {
-      scene.append(el('p', { class: 'subline rise' },
-        ids.map((pid) => `${byId(pid)?.nick}: ${tally[pid] || 0} Stimmen`).join(' · ')));
+      for (const pid of ids) {
+        const card = cards.find((c) => c.playerId === pid);
+        if (!card) continue;
+        scene.append(el('div', { class: 'saidcard wrong rise', style: { maxWidth: '46ch' } },
+          el('div', { class: 'body' },
+            el('span', { class: `text${card.empty ? ' blank' : ''}` }, card.empty ? '… gar nichts geschrieben' : `„${card.text}“`),
+            el('span', { class: 'who' }, `${card.votes} Stimme${card.votes === 1 ? '' : 'n'} — gefragt war ${card.answer}`)),
+          el('span', { class: 'verdict' }, '💀')));
+      }
     }, 3400);
   },
 
@@ -452,8 +477,8 @@ const BUILDERS = {
 
 const UPDATERS = {
   lobby() { renderSeats(); syncSettings(); },
-  question() { syncAnswerLocks(); },
-  reveal() { syncAnswerLocks(); },
+  question() { syncAnswers(); },
+  reveal() { syncAnswers(); },
   voting() { syncVotingProgress(); },
   // Voting und Auszählung teilen sich bewusst dieselbe Szene: Die
   // Kandidatenkarten sollen stehen bleiben, damit die Vote-Karten auf
@@ -464,11 +489,13 @@ const UPDATERS = {
     scene.dataset.step = 'reveal';
     const headline = scene.querySelector('.headline');
     if (headline) headline.textContent = 'Die Stimmen sind ausgezählt';
+    const sub = scene.querySelector('.subline');
+    if (sub) sub.textContent = '';
     $('#voteProgress').textContent = '';
     choreographVotes(state.voteResult);
   },
-  final_question() { syncAnswerLocks(); },
-  final_reveal() { syncAnswerLocks(); },
+  final_question() { syncAnswers(); },
+  final_reveal() { syncAnswers(); },
   tiebreak() {
     for (const pid of state.tiebreak.participants) {
       const node = $(`#g-${pid}`);
@@ -552,11 +579,6 @@ function renderSeats() {
 function buildQuestion(isFinal = false) {
   const q = state.question;
   if (!q) return;
-  const answers = el('div', { class: 'answers' }, ...q.options.map((text, i) =>
-    el('div', { class: `answer a${i}`, 'data-i': i },
-      el('span', { class: 'glyph' }, ANSWER_GLYPHS[i]),
-      el('span', {}, text),
-      el('span', { class: 'voters' }))));
 
   scene.append(
     isFinal ? finalScore() : el('div', { class: 'qmeta' },
@@ -564,36 +586,37 @@ function buildQuestion(isFinal = false) {
       el('span', { class: 'chip' }, `${q.value} Punkte`),
       state.chain > 1 ? el('span', { class: 'chip', style: { background: 'var(--gold)', color: 'var(--ink)' } }, `×${state.chain}`) : null),
     el('div', { class: 'qcard' }, q.text),
-    answers,
+    el('div', { class: 'answerwall typing', id: 'answerWall' }),
     el('div', { id: 'revealSlot', style: { minHeight: '2.4rem' } }),
   );
-  syncAnswerLocks();
+  syncAnswers();
 }
 
-function syncAnswerLocks() {
+/**
+ * Vor der Auflösung zeigt die Bühne nur, wer schon getippt hat — der Text
+ * bleibt geheim, sonst schreibt der Letzte einfach ab. Danach liegt alles
+ * offen: Das ist der Moment, für den das Spiel gebaut ist.
+ */
+function syncAnswers() {
+  const wall = $('#answerWall');
+  if (!wall) return;
   const reveal = state.reveal;
-  const cards = [...scene.querySelectorAll('.answer')];
-  if (!cards.length) return;
+  const pool = state.final
+    ? state.final.players.map(byId).filter(Boolean)
+    : state.players.filter((p) => p.alive);
 
-  if (!reveal) return;
-
-  for (const card of cards) {
-    const i = Number(card.dataset.i);
-    card.classList.toggle('right', i === reveal.correct);
-    card.classList.toggle('dim', i !== reveal.correct);
-    const voters = card.querySelector('.voters');
-    if (voters.childElementCount) continue;
-    // Avatare springen auf die Option, die sie gewählt haben.
-    const jumpers = Object.entries(reveal.perPlayer).filter(([, choice]) => choice === i).map(([pid]) => byId(pid)).filter(Boolean);
-    voters.replaceChildren(...jumpers.map((p, n) => {
-      const node = avatarEl(p, { size: 30 });
-      node.style.animationDelay = `${n * 60}ms`;
-      return node;
-    }));
+  if (!reveal) {
+    wall.className = 'answerwall typing';
+    wall.replaceChildren(...pool.map((p) => el('div', { class: `typer${p.answered ? ' done' : ''}` },
+      avatarEl(p, { size: 46 }),
+      el('span', { class: 'name' }, p.nick),
+      el('span', { class: 'state' }, p.answered ? '✓ getippt' : '✍️ …'))));
+    return;
   }
 
   const slot = $('#revealSlot');
   if (slot && !slot.childElementCount) {
+    slot.append(el('div', { class: 'solutionline' }, `Richtig war: ${reveal.answer}`));
     if (reveal.final) {
       slot.append(el('div', { class: 'potflash' }, reveal.final.reason));
     } else if (reveal.potDelta > 0) {
@@ -604,75 +627,83 @@ function syncAnswerLocks() {
         reveal.chainBroken ? '🥶 Die Kette ist eingefroren' : 'Nichts für den Pott.'));
     }
   }
+
+  if (wall.dataset.revealed === '1') return;
+  wall.dataset.revealed = '1';
+  wall.className = 'answerwall';
+  wall.replaceChildren(...pool.map((p, i) => {
+    const entry = reveal.perPlayer?.[p.id] || {};
+    const card = el('div', {
+      class: `saidcard ${entry.correct ? 'right' : 'wrong'}`,
+      style: { animationDelay: `${i * 90}ms` },
+    },
+    avatarEl({ ...p, alive: true }, { size: 40 }),
+    el('div', { class: 'body' },
+      el('span', { class: `text${entry.empty ? ' blank' : ''}` }, entry.empty ? '… nichts' : `„${entry.text}“`),
+      el('span', { class: 'who' }, p.nick)),
+    el('span', { class: 'verdict' }, entry.correct ? '✓' : '✗'));
+    return card;
+  }));
 }
 
 function buildVoting() {
-  const alive = state.players.filter((p) => p.alive);
   const revealing = state.phase === 'vote_reveal';
-  const result = state.voteResult;
+  const cards = revealing ? (state.voteResult?.cards || []) : (state.voting?.ballot || []);
 
-  const cards = el('div', { class: 'candidates' }, ...alive.map((p) => {
-    const card = el('div', { class: 'candidate', 'data-pid': p.id },
-      avatarEl(p, { size: 62 }),
-      el('span', { class: 'name' }, p.nick),
-      el('span', { class: 'stat' }, `${p.roundCorrect}/${p.roundAnswered} richtig${p.chainBreaks ? ` · ${p.chainBreaks}× Kette` : ''}`),
-      el('div', { class: 'votepile' }));
-    return card;
-  }));
+  const wall = el('div', { class: 'ballotwall', id: 'ballotWall' }, ...cards.map((card, i) => el('div', {
+    class: 'votecardbig', 'data-id': card.id, style: { animationDelay: `${i * 70}ms` },
+  },
+  el('span', { class: `said${card.empty ? ' blank' : ''}` }, card.empty ? '… nichts geschrieben' : `„${card.text}“`),
+  el('span', { class: 'ctx' }, `${card.question} — richtig war ${card.answer}`),
+  el('span', { class: 'author' }),
+  el('span', { class: 'tallynum', hidden: true }, ''))));
 
   scene.append(
-    el('h1', { class: 'headline' }, revealing ? 'Die Stimmen sind ausgezählt' : 'Wer fliegt raus?'),
-    cards,
+    el('h1', { class: 'headline' }, revealing ? 'Die Stimmen sind ausgezählt' : 'Welche Antwort war die dümmste?'),
+    el('p', { class: 'subline' }, revealing ? '' : 'Wer sie geschrieben hat, fliegt.'),
+    wall,
     el('div', { class: 'progressline', id: 'voteProgress' }, ''),
-    el('div', { class: 'bubbles', id: 'bubbles' }),
   );
 
-  if (revealing && result) choreographVotes(result);
+  if (revealing && state.voteResult) choreographVotes(state.voteResult);
   else syncVotingProgress();
 }
 
-/** Vote-Karten fliegen einzeln ein, die letzte mit Extra-Verzögerung. */
+/** Die Stimmen tropfen einzeln auf die Karten, dann fallen die Namen. */
 function choreographVotes(result) {
   const flat = [];
-  for (const [pid, count] of Object.entries(result.tally)) {
-    for (let i = 0; i < count; i++) flat.push(pid);
+  for (const card of result.cards) {
+    for (let i = 0; i < card.votes; i++) flat.push(card.id);
   }
   const shuffled = flat.sort(() => Math.random() - 0.5);
-  const perCard = shuffled.length > 6 ? 520 : 700;
+  const step = shuffled.length > 6 ? 460 : 640;
 
-  shuffled.forEach((pid, i) => {
-    const last = i === shuffled.length - 1;
+  shuffled.forEach((cardId, i) => {
     voteTimers.push(setTimeout(() => {
-      const pile = scene.querySelector(`.candidate[data-pid="${pid}"] .votepile`);
-      pile?.append(el('div', { class: 'votecard' }));
+      const node = scene.querySelector(`.votecardbig[data-id="${cardId}"]`);
+      if (!node) return;
+      const badge = node.querySelector('.tallynum');
+      badge.hidden = false;
+      badge.textContent = String((Number(badge.textContent) || 0) + 1);
+      node.classList.add('hit');
       audio.play('cardFlap', { i: i % 4 });
-      if (last) revealTally(result);
-    }, 600 + i * perCard + (last ? 700 : 0)));
+    }, 500 + i * step));
   });
 
-  if (!shuffled.length) voteTimers.push(setTimeout(() => revealTally(result), 900));
-
-  // Begründungen erscheinen parallel als anonyme Sprechblasen.
-  const bubbles = $('#bubbles');
-  result.reasons.slice(0, 8).forEach((reason, i) => {
-    voteTimers.push(setTimeout(() => {
-      const target = byId(reason.targetId);
-      bubbles.append(el('div', { class: 'bubble' },
-        el('span', { class: 'about' }, `über ${target?.nick || '?'}: `),
-        `„${reason.text}“`));
-      audio.play('tap');
-    }, 900 + i * 620));
-  });
+  const after = 500 + shuffled.length * step + 500;
+  voteTimers.push(setTimeout(() => revealAuthors(result), after));
 }
 
-function revealTally(result) {
-  const entries = Object.entries(result.tally).sort((a, b) => b[1] - a[1]);
-  const cut = entries[result.elimCount - 1]?.[1] ?? 0;
-  for (const [pid, count] of entries) {
-    const card = scene.querySelector(`.candidate[data-pid="${pid}"]`);
-    if (!card) continue;
-    card.append(el('span', { class: 'tallynum' }, String(count)));
-    if (count >= cut && count > 0) card.classList.add('doomed');
+function revealAuthors(result) {
+  const top = result.cards[0]?.votes || 0;
+  for (const card of result.cards) {
+    const node = scene.querySelector(`.votecardbig[data-id="${card.id}"]`);
+    if (!node) continue;
+    const who = byId(card.playerId);
+    const author = node.querySelector('.author');
+    author.replaceChildren(avatarEl({ ...who, alive: true }, { size: 26 }), el('span', {}, who?.nick || '?'));
+    author.classList.add('shown');
+    if (card.votes && card.votes === top) node.classList.add('doomed');
   }
   $('#voteProgress').textContent = result.abstained
     ? `${result.abstained} Enthaltung${result.abstained === 1 ? '' : 'en'}`
@@ -683,11 +714,7 @@ function revealTally(result) {
 function syncVotingProgress() {
   const node = $('#voteProgress');
   if (!node || !state.voting) return;
-  node.textContent = `${state.voting.voted} von ${state.voting.total} haben abgestimmt`;
-  for (const p of state.players.filter((x) => x.alive)) {
-    const card = scene.querySelector(`.candidate[data-pid="${p.id}"]`);
-    card?.classList.toggle('voted', p.voted);
-  }
+  node.textContent = `${state.voting.voted} von ${state.voting.total} haben gewählt`;
 }
 
 function finalScore() {

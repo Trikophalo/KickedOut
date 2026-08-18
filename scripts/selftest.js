@@ -30,10 +30,19 @@ function check(label, condition, detail = '') {
   else failures.push(`  ✗ ${label}${detail ? ` — ${detail}` : ''}`);
 }
 
+/**
+ * Nachschlagewerk für den „Streber": Fragetext → Lösung.
+ * Er kennt die Antworten aus der Bank, nicht aus dem Spielzustand — genau so,
+ * wie ein Mitspieler sie aus dem Kopf kennt. Damit prüft der Test den ganzen
+ * Weg von der freien Eingabe über die Bewertung bis in den Pott.
+ */
+let SOLUTIONS = new Map();
+
 class Client {
-  constructor(name, hello) {
+  constructor(name, hello, { knowsAnswers = false } = {}) {
     this.name = name;
     this.hello = hello;
+    this.knowsAnswers = knowsAnswers;
     this.state = null;
     this.seen = new Set();
     this.fx = [];
@@ -74,17 +83,21 @@ class Client {
   /** Die Zusagen aus dem Konzept, gegen jeden einzelnen Zustand geprüft. */
   audit(s) {
     if (s.phase === 'question' || s.phase === 'final_question') {
-      if (s.question && 'correct' in s.question) this.leak = 'Lösung im Fragen-Objekt';
+      if (s.question && ('answer' in s.question || 'options' in s.question)) this.leak = 'Lösung im Fragen-Objekt';
       if (s.reveal) this.leak = 'reveal-Block vor der Auflösung';
       if (s.you && s.you.wasRight !== null) this.leak = 'Eigenes Ergebnis vor der Auflösung';
-    }
-    if (s.voteResult?.anonymous) {
-      for (const reason of s.voteResult.reasons || []) {
-        if (reason.voterId) this.leak = 'Wähler-Zuordnung im Anonym-Modus';
+      // Was die anderen tippen, darf vor der Auflösung niemand sehen —
+      // sonst schreibt der Letzte einfach ab.
+      for (const p of s.players || []) {
+        if ('answerText' in p || 'answer' in p) this.leak = `Fremde Eingabe sichtbar (${p.nick})`;
       }
     }
+    // Der Stimmzettel geht ohne Urheber raus.
+    for (const card of s.voting?.ballot || []) {
+      if ('playerId' in card) this.leak = 'Urheber auf dem Stimmzettel';
+    }
     for (const p of s.players || []) {
-      if ('vote' in p || 'token' in p || 'answer' in p) this.leak = `Interne Spielerfelder in players[] (${p.nick})`;
+      if ('vote' in p || 'token' in p) this.leak = `Interne Spielerfelder in players[] (${p.nick})`;
     }
   }
 
@@ -98,21 +111,22 @@ class Client {
     }
 
     if ((s.phase === 'question' && me.alive) || (s.phase === 'final_question' && me.finalist)) {
-      if (me.choice == null) {
-        // Zufällig raten — der Test darf die Lösung gar nicht kennen können.
-        setTimeout(() => this.send({ t: 'answer', choice: Math.floor(Math.random() * 4) }), 20 + Math.random() * 60);
+      if (!me.answer) {
+        const known = this.knowsAnswers ? SOLUTIONS.get(s.question?.text) : null;
+        // Alle anderen tippen Unsinn — genau daraus entsteht der Stimmzettel.
+        const nonsense = ['Banane', 'Keine Ahnung', 'Dein Vater', '42', 'Käse', 'ja'];
+        const text = known || nonsense[Math.floor(Math.random() * nonsense.length)];
+        setTimeout(() => this.send({ t: 'answer', text }), 20 + Math.random() * 60);
       }
       return;
     }
 
     if (s.phase === 'voting') {
       if (me.alive && !me.vote) {
-        const targets = s.voting.candidates.filter((id) => id !== me.id);
-        this.send({
-          t: 'vote',
-          targetId: targets[Math.floor(Math.random() * targets.length)],
-          reason: s.voting.chips[Math.floor(Math.random() * s.voting.chips.length)],
-        });
+        const options = (s.voting.ballot || []).filter((c) => !c.mine);
+        if (options.length) {
+          this.send({ t: 'vote', ballotId: options[Math.floor(Math.random() * options.length)].id });
+        }
       } else if (!me.alive && !me.prediction) {
         const targets = s.players.filter((p) => p.alive);
         this.send({ t: 'predict', targetId: targets[Math.floor(Math.random() * targets.length)].id });
@@ -164,6 +178,8 @@ async function main() {
     // liegt es an der Qualitätsprüfung und nicht an der Frage selbst.
     const health = await (await fetch(`http://127.0.0.1:${PORT}/api/health`)).json();
     const { BANK } = await import('../server/questions/bank.js');
+    const { answerOf } = await import('../server/questions/quality.js');
+    SOLUTIONS = new Map(BANK.map((q) => [q.text, answerOf(q)]));
     check('Der komplette Fragen-Grundstock ist im Pool', health.questions.total === BANK.length,
       `${health.questions.total} von ${BANK.length}`);
     check('Der Moderator hat einen gefüllten Spruch-Pool', health.moderatorLines > 400, `${health.moderatorLines}`);
@@ -178,7 +194,7 @@ async function main() {
       const client = new Client(`Spieler${i + 1}`, {
         t: 'join', code: stage.code, nick: `Test${i + 1}`,
         avatar: { face: '🦊', color: '#5AA7FF', hat: null },
-      });
+      }, { knowsAnswers: i === 0 });
       await client.connect();
       players.push(client);
       await sleep(60);
@@ -228,7 +244,10 @@ async function main() {
     check('Es gibt genau einen Sieger', Boolean(results.winnerId));
     check('Genau zwei Spieler erreichen das Finale', finalists.length === 2, `${finalists.length}`);
     check('Alle anderen sind rausgeflogen', stage.state.players.filter((p) => p.eliminatedRound).length === PLAYERS - 2);
-    check('Der Pott ist gefüllt', results.pot > 0, `${results.pot}`);
+    check('Wer die Antwort tippt, füllt den Pott', results.pot > 0, `${results.pot}`);
+    const contributed = results.table.reduce((sum, r) => sum + r.contributed, 0);
+    check('Der Pott entspricht exakt der Summe aller Einzahlungen',
+      results.pot === contributed, `${results.pot} vs ${contributed}`);
     // Auch nach Sudden Death darf der Sieger nie als rausgeflogen geführt werden.
     const winner = stage.state.players.find((p) => p.id === results.winnerId);
     check('Der Sieger ist nicht rausgeflogen', winner && !winner.eliminatedRound && winner.alive,
@@ -237,15 +256,21 @@ async function main() {
     check('Awards wurden vergeben', results.awards.length > 0, `${results.awards.length}`);
 
     const phases = stage.seen;
-    for (const phase of ['intro', 'round_intro', 'question', 'reveal', 'voting', 'vote_reveal',
-      'elimination', 'final_intro', 'final_question', 'final_reveal', 'results']) {
+    check('Zu zweit gibt es keinen Rausschmiss, nur das Duell',
+      PLAYERS > 2 || !phases.has('elimination'));
+
+    const expected = PLAYERS > 2
+      ? ['intro', 'round_intro', 'question', 'reveal', 'voting', 'vote_reveal',
+        'elimination', 'final_intro', 'final_question', 'final_reveal', 'results']
+      : ['intro', 'final_intro', 'final_question', 'final_reveal', 'results'];
+    for (const phase of expected) {
       check(`Phase „${phase}“ wurde durchlaufen`, phases.has(phase));
     }
 
     const leaks = [stage, ...players].filter((c) => c.leak).map((c) => `${c.name}: ${c.leak}`);
-    check('Keine Lösung und keine Wähler-Zuordnung ausgeliefert', leaks.length === 0, leaks.join(' | '));
+    check('Weder Lösung noch fremde Eingaben vor der Auflösung ausgeliefert', leaks.length === 0, leaks.join(' | '));
 
-    check('Die Bühne hat den Rausschmiss-Effekt bekommen', stage.fx.includes('eliminate'));
+    if (PLAYERS > 2) check('Die Bühne hat den Rausschmiss-Effekt bekommen', stage.fx.includes('eliminate'));
     check('Die Bühne hat die Sieger-Fanfare bekommen', stage.fx.includes('victory'));
 
     // Revanche muss zurück in die Lobby führen.

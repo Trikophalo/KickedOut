@@ -1,7 +1,8 @@
-import { CONFIG, REASON_CHIPS, CATEGORIES, eliminationPlan, roundSpec, answerTimeMs, scaled } from './config.js';
+import { CONFIG, CATEGORIES, eliminationPlan, roundSpec, answerTimeMs, scaled } from './config.js';
 import { Moderator, TONES } from './moderator/index.js';
 import { computeAwards, buildRecap } from './awards.js';
 import { calibrated } from './questions/quality.js';
+import { grade } from './questions/grade.js';
 import { questions as questionService } from './questions/index.js';
 import { id as newId, token as newToken, shuffle, pick, cleanText, clamp, now } from './util.js';
 
@@ -82,7 +83,9 @@ export class Room {
     this.chatBuffer = [];
     this.moments = [];
     this.usedEstimates = new Set();
-    this.reasonChips = shuffle(REASON_CHIPS).slice(0, 6);
+    // Alle Antworten der laufenden Runde — daraus wird der Stimmzettel gebaut.
+    this.roundAnswers = [];
+    this.ballot = [];
     this.stateSeq = 0;
   }
 
@@ -240,15 +243,20 @@ export class Room {
   onAnswer(player, msg) {
     if (!player || !player.alive || !ANSWER_PHASES.has(this.phase) || !this.current) return;
     if (this.phase === PHASES.FINAL_QUESTION && !this.final?.players.includes(player.id)) return;
-    const choice = Number(msg.choice);
-    if (!Number.isInteger(choice) || choice < 0 || choice > 3) return;
+
+    const text = cleanText(msg.text, CONFIG.answer.maxLength);
+    if (!text) return;
 
     const first = !player.answer;
-    player.answer = { choice, at: now(), ms: now() - this.questionStartedAt };
+    // Nachbessern bleibt bis zum Timer-Ende erlaubt; gezählt wird der Moment
+    // der ersten Eingabe, sonst würde Korrigieren den Schnelligkeitsbonus fressen.
+    player.answer = {
+      text,
+      at: now(),
+      ms: first ? now() - this.questionStartedAt : player.answer.ms,
+    };
     this.broadcast();
 
-    // Sobald alle drin sind, läuft nur noch ein kurzer Nachlauf — das erzeugt
-    // das Schnellfeuer-Gefühl, ohne dass ein Schnellklicker die Frage abwürgt.
     const pending = this.answerPool().filter((p) => !p.answer);
     if (!pending.length && first) {
       this.setPhaseTimer(Math.min(CONFIG.timing.answerGrace, this.remainingMs()));
@@ -257,13 +265,11 @@ export class Room {
 
   onVote(player, msg) {
     if (!player || !player.alive || this.phase !== PHASES.VOTING) return;
-    const target = this.players.get(msg.targetId);
-    if (!target || !target.alive || target.id === player.id) return;
-    const reason = cleanText(msg.reason, CONFIG.vote.reasonMax);
-    if (reason.length < CONFIG.vote.reasonMin) {
-      return player.conn?.send({ t: 'error', msg: 'Ohne Begründung geht es nicht. Das ist der Deal.' });
-    }
-    player.vote = { targetId: target.id, reason, at: now() };
+    const card = this.ballot.find((c) => c.id === msg.ballotId);
+    // Für die eigene Antwort zu stimmen wäre entweder Selbstmord oder Taktik —
+    // beides nimmt dem Moment die Pointe.
+    if (!card || card.playerId === player.id) return;
+    player.vote = { ballotId: card.id, targetId: card.playerId, at: now() };
     this.broadcast();
 
     if (this.alive.every((p) => p.vote)) this.setPhaseTimer(1200);
@@ -414,7 +420,8 @@ export class Room {
   /** Wird ausgelöst, wenn der Timer der aktuellen Phase abgelaufen ist. */
   advance() {
     switch (this.phase) {
-      case PHASES.INTRO:            return this.startRound();
+      // Bei zwei Spielern gibt es nichts zu eliminieren — es geht sofort ums Duell.
+      case PHASES.INTRO:            return this.plan.length ? this.startRound() : this.startFinale();
       case PHASES.ROUND_INTRO:      return this.askQuestion();
       case PHASES.QUESTION:         return this.revealAnswer();
       case PHASES.REVEAL:           return this.afterReveal();
@@ -477,7 +484,8 @@ export class Room {
     this.reveal = null;
     this.voteResult = null;
     this.roundQuestions = this.batch.planRound(this.round);
-    this.reasonChips = shuffle(REASON_CHIPS).slice(0, 6);
+    this.roundAnswers = [];
+    this.ballot = [];
 
     for (const player of this.players.values()) {
       player.roundAnswered = 0;
@@ -523,15 +531,16 @@ export class Room {
     const chainBefore = this.chain;
     const perPlayer = {};
     const correctIds = [];
-    const breakers = [];
+    const wrongIds = [];
 
     for (const player of pool) {
-      const choice = player.answer?.choice ?? null;
-      if (choice != null) perPlayer[player.id] = choice;
-      const right = choice === q.correct;
+      const text = player.answer?.text ?? '';
+      const verdict = grade(text, q);
+      perPlayer[player.id] = { text, correct: verdict.correct, empty: verdict.empty, ms: player.answer?.ms ?? null };
+
       player.answered++;
       player.roundAnswered++;
-      if (right) {
+      if (verdict.correct) {
         player.correct++;
         player.roundCorrect++;
         player.correctMs += player.answer.ms;
@@ -539,15 +548,24 @@ export class Room {
         player.contributed += q.value * chainBefore;
         correctIds.push(player.id);
       } else {
-        breakers.push(player.id);
+        wrongIds.push(player.id);
       }
+
+      // Jede Antwort wandert in den Rundenspeicher — am Rundenende wird
+      // daraus der Stimmzettel für die dümmste Antwort gebaut.
+      this.roundAnswers.push({
+        playerId: player.id,
+        question: q.text,
+        answer: q.answer,
+        text,
+        correct: verdict.correct,
+        empty: verdict.empty,
+      });
     }
 
     // Für die Kette zählen nur Spieler, die überhaupt antworten konnten.
-    // Ein totes Handy würde sonst jede Runde die Kette sprengen, ohne dass
-    // jemand etwas dagegen tun kann — für die Punkte zählt der Ausfall trotzdem.
     const chainPool = pool.filter((p) => p.connected || p.answer);
-    const chainBreakers = breakers.filter((pid) => chainPool.some((p) => p.id === pid));
+    const chainBreakers = wrongIds.filter((pid) => chainPool.some((p) => p.id === pid));
     const allCorrect = chainPool.length > 0 && chainBreakers.length === 0;
 
     const potDelta = correctIds.length * q.value * chainBefore;
@@ -563,12 +581,9 @@ export class Room {
     }
 
     this.reveal = {
-      correct: q.correct,
-      correctText: q.options[q.correct],
+      answer: q.answer,
       perPlayer,
       correctIds,
-      // Nur wer die Kette wirklich gebrochen hat — sonst bekäme ein
-      // Verbindungsabbruch beim Wiedereinstieg fälschlich den Eiszapfen.
       breakers: chainBreakers,
       potDelta,
       chainBefore,
@@ -586,7 +601,7 @@ export class Room {
       const culprit = this.players.get(pick(chainBreakers));
       this.say('chainBreak', {
         name: culprit?.nick || 'Jemand', chain: chainBefore,
-        wrong: culprit ? q.options[culprit.answer?.choice ?? q.correct] : q.options[0],
+        wrong: culprit?.answer?.text || 'gar nichts',
       });
       this.fx('chainBreak', { breakers: chainBreakers });
       if (chainBefore >= 3) {
@@ -603,7 +618,7 @@ export class Room {
         this.moments.push({ kind: 'chainPeak', title: `Kette auf ×${CONFIG.chainMax}`, detail: `Runde ${this.round}, alle richtig` });
       }
     } else if (!correctIds.length) {
-      this.say('allWrong', { correct: q.options[q.correct] });
+      this.say('allWrong', { correct: q.answer });
       this.fx('allWrong');
     } else {
       this.fx('reveal', { potDelta });
@@ -621,7 +636,16 @@ export class Room {
   endRound() {
     this.current = null;
     this.reveal = null;
+
+    const juicy = shuffle(this.roundAnswers.filter((a) => !a.correct && !a.empty));
     const perfect = this.alive.every((p) => p.roundCorrect === p.roundAnswered && p.roundAnswered > 0);
+    if (juicy.length && !perfect) {
+      const pickOne = juicy[0];
+      this.say('readReason', {
+        reason: pickOne.text,
+        target: this.players.get(pickOne.playerId)?.nick || 'jemand',
+      });
+    }
     if (perfect) {
       this.say('perfectRound', { pot: this.pot });
       this.moments.push({ kind: 'perfectRound', title: `Runde ${this.round} fehlerfrei`, detail: `Pott bei ${this.pot}` });
@@ -632,11 +656,41 @@ export class Room {
 
   // =========================================================== Voting
 
+  /**
+   * Baut den Stimmzettel: pro lebendem Spieler genau eine Antwort.
+   * Bevorzugt wird die falsche, nicht-leere — das sind die Antworten, um die
+   * es geht. So bleibt die Auswahl übersichtlich, jeder ist wählbar, und die
+   * meistgewählte Karte zeigt eindeutig auf eine Person.
+   */
+  buildBallot() {
+    const rank = (entry) => {
+      if (entry.empty) return 1;          // gar nichts geschrieben
+      if (!entry.correct) return 0;       // die eigentliche Beute
+      return 2;                           // richtig — nur als letzter Ausweg
+    };
+
+    const ballot = [];
+    for (const player of this.alive) {
+      const mine = this.roundAnswers.filter((a) => a.playerId === player.id);
+      if (!mine.length) {
+        ballot.push({
+          id: newId('c-'), playerId: player.id, question: '—',
+          text: '', answer: '', correct: false, empty: true,
+        });
+        continue;
+      }
+      const best = shuffle(mine).sort((a, b) => rank(a) - rank(b))[0];
+      ballot.push({ id: newId('c-'), playerId: player.id, ...best });
+    }
+    return shuffle(ballot);
+  }
+
   openVoting() {
     for (const player of this.players.values()) {
       player.vote = null;
       player.prediction = null;
     }
+    this.ballot = this.buildBallot();
     this.voting = { openedAt: now() };
     this.say('votingOpen', { count: this.alive.length });
     this.enter(PHASES.VOTING, scaled(CONFIG.timing.voting));
@@ -646,19 +700,12 @@ export class Room {
   closeVoting() {
     const voters = this.alive.filter((p) => p.vote);
     const tally = new Map(this.alive.map((p) => [p.id, 0]));
-    const reasons = [];
+    const perCard = new Map(this.ballot.map((c) => [c.id, 0]));
 
     for (const voter of voters) {
+      perCard.set(voter.vote.ballotId, (perCard.get(voter.vote.ballotId) || 0) + 1);
       tally.set(voter.vote.targetId, (tally.get(voter.vote.targetId) || 0) + 1);
-      reasons.push({
-        targetId: voter.vote.targetId,
-        text: voter.vote.reason,
-        // Anonymität ist heilig: Der Wähler wird nur im ausdrücklich
-        // eingeschalteten Klartext-Modus mitgeschickt.
-        voterId: this.settings.anonymousVoting ? null : voter.id,
-      });
     }
-
     for (const [pid, count] of tally) this.players.get(pid).votesReceived += count;
 
     let elimCount = this.plan[this.round - 1] ?? 1;
@@ -666,15 +713,19 @@ export class Room {
 
     this.voteResult = {
       tally: Object.fromEntries(tally),
-      reasons: shuffle(reasons),
+      // Jetzt erst wird aufgedeckt, wer was geschrieben hat.
+      cards: this.ballot.map((c) => ({
+        id: c.id, playerId: c.playerId, question: c.question,
+        text: c.text, answer: c.answer, correct: c.correct, empty: c.empty,
+        votes: perCard.get(c.id) || 0,
+      })).sort((a, b) => b.votes - a.votes),
       elimCount,
       abstained: this.alive.length - voters.length,
-      anonymous: this.settings.anonymousVoting,
     };
 
     this.say('voteReveal');
     this.enter(PHASES.VOTE_REVEAL, scaled(CONFIG.timing.voteReveal));
-    this.fx('voteReveal', { count: reasons.length });
+    this.fx('voteReveal', { count: this.ballot.length });
   }
 
   afterVoteReveal() {
@@ -784,8 +835,14 @@ export class Room {
           detail: `${main.nick} mit ${votesFor} zu ${runnerUp} Stimmen`,
         });
       }
-      const spicy = (this.voteResult?.reasons || []).find((r) => r.targetId === main.id && r.text.length > 12);
-      if (spicy) this.moments.push({ kind: 'reason', title: 'Begründung des Abends', detail: `„${spicy.text}“ — über ${main.nick}` });
+      const card = (this.voteResult?.cards || []).find((c) => c.playerId === main.id && c.votes > 0);
+      if (card && !card.empty) {
+        this.moments.push({
+          kind: 'reason',
+          title: 'Dümmste Antwort des Abends',
+          detail: `„${card.text}“ von ${main.nick} — gefragt war ${card.answer}`,
+        });
+      }
     }
 
     this.eliminated = eliminated.map((p) => p.id);
@@ -851,7 +908,13 @@ export class Room {
     if (!q) return this.finishFinale();
 
     for (const pid of this.final.players) this.players.get(pid).answer = null;
-    this.current = { ...q, plannedDiff: calibrated(q), value: 0 };
+    // Das Finale zahlt auf der höchsten Stufe ein. Zu zweit ist es die einzige
+    // Quelle für den Pott — vorher blieb der dann bei null stehen.
+    this.current = {
+      ...q,
+      plannedDiff: calibrated(q),
+      value: roundSpec(CONFIG.maxRounds).value[calibrated(q)],
+    };
     this.questionStartedAt = now();
     this.enter(PHASES.FINAL_QUESTION, scaled(CONFIG.timing.finalQuestion));
     this.fx('questionIn', { final: true, category });
@@ -864,19 +927,23 @@ export class Room {
     const q = this.current;
 
     const evaluate = (player) => {
-      const choice = player.answer?.choice ?? null;
-      const right = choice === q.correct;
+      const text = player.answer?.text ?? '';
+      const verdict = grade(text, q);
       player.answered++;
-      if (right) {
+      if (verdict.correct) {
         player.correct++;
         player.correctMs += player.answer.ms;
         player.fastestMs = player.fastestMs ? Math.min(player.fastestMs, player.answer.ms) : player.answer.ms;
+        player.contributed += q.value;
       }
-      return { right, ms: player.answer?.ms ?? Infinity, choice };
+      return { right: verdict.correct, ms: player.answer?.ms ?? Infinity, text, empty: verdict.empty };
     };
 
     const ra = evaluate(a);
     const rb = evaluate(b);
+
+    const potDelta = (ra.right ? q.value : 0) + (rb.right ? q.value : 0);
+    this.pot += potDelta;
 
     let winner = null;
     let reason = 'Beide daneben.';
@@ -898,12 +965,14 @@ export class Room {
 
     this.final.lastPoint = { winner, reason, ms: { [aId]: ra.ms, [bId]: rb.ms } };
     this.reveal = {
-      correct: q.correct,
-      correctText: q.options[q.correct],
-      perPlayer: { [aId]: ra.choice, [bId]: rb.choice },
+      answer: q.answer,
+      perPlayer: {
+        [aId]: { text: ra.text, correct: ra.right, empty: ra.empty, ms: ra.ms },
+        [bId]: { text: rb.text, correct: rb.right, empty: rb.empty, ms: rb.ms },
+      },
       correctIds: [ra.right ? aId : null, rb.right ? bId : null].filter(Boolean),
       breakers: [],
-      potDelta: 0,
+      potDelta,
       chainBefore: this.chain,
       chainAfter: this.chain,
       chainForged: false,
@@ -955,13 +1024,15 @@ export class Room {
     const roster = this.order.map((pid) => this.players.get(pid)).filter(Boolean);
     const awards = computeAwards(roster);
 
-    // Giftzunge: die längste Begründung des Abends steht stellvertretend für
-    // die beste — echte Kür durch die Runde ist ein V1-Feature.
-    // Sie wandert in die Awards und wird deshalb aus dem Recap genommen,
-    // sonst stünde derselbe Satz zweimal auf dem Screen.
+    // Die Antwort, die jemanden den Platz gekostet hat, bekommt ihren eigenen
+    // Award. Sie wandert deshalb aus dem Recap heraus — sonst stünde derselbe
+    // Satz zweimal auf dem Screen.
     const allReasons = this.moments.filter((m) => m.kind === 'reason');
     if (allReasons.length) {
-      awards.push({ key: 'giftzunge', label: 'Giftzunge', icon: '🐍', hint: 'Beste Begründung', id: null, detail: allReasons[0].detail });
+      awards.push({
+        key: 'giftzunge', label: 'Dümmste Antwort', icon: '🥴',
+        hint: 'Hat jemanden den Platz gekostet', id: null, detail: allReasons[0].detail,
+      });
     }
     const recapMoments = this.moments.filter((m) => m.kind !== 'reason');
 
@@ -1010,6 +1081,8 @@ export class Room {
     this.moments = [];
     this.chatBuffer = [];
     this.usedEstimates = new Set();
+    this.roundAnswers = [];
+    this.ballot = [];
     for (const player of this.players.values()) {
       player.alive = true;
       player.ready = false;
@@ -1068,7 +1141,6 @@ export class Room {
 
     const question = this.current ? {
       text: this.current.text,
-      options: this.current.options,
       cat: this.current.cat,
       diff: this.current.plannedDiff,
       value: this.current.value,
@@ -1099,11 +1171,16 @@ export class Room {
       // für keinen Client, auch nicht für die Bühne.
       reveal: this.reveal,
       voting: this.phase === PHASES.VOTING ? {
-        candidates: this.alive.map((p) => p.id),
+        // Der Stimmzettel geht ohne Urheber raus. Wer was geschrieben hat,
+        // wird erst in der Auszählung aufgedeckt — sonst wählt die Runde nach
+        // Sympathie statt nach Antwort.
+        ballot: this.ballot.map((c) => ({
+          id: c.id, question: c.question, text: c.text,
+          answer: c.answer, correct: c.correct, empty: c.empty,
+          mine: viewer ? c.playerId === viewer.id : false,
+        })),
         voted: this.alive.filter((p) => p.vote).length,
         total: this.alive.length,
-        chips: this.reasonChips,
-        anonymous: this.settings.anonymousVoting,
       } : null,
       voteResult: [PHASES.VOTE_REVEAL, PHASES.TIEBREAK, PHASES.TIEBREAK_REVEAL, PHASES.ELIMINATION].includes(this.phase)
         ? this.voteResult : null,
@@ -1136,11 +1213,11 @@ export class Room {
         isHost: viewer.isHost,
         alive: viewer.alive,
         ready: viewer.ready,
-        choice: viewer.answer?.choice ?? null,
+        answer: viewer.answer?.text ?? '',
         // Das eigene Ergebnis kommt erst mit dem Reveal — sonst könnte der
         // Controller die Lösung vor der Bühne verraten.
-        wasRight: revealing && viewer.answer ? viewer.answer.choice === this.current?.correct : null,
-        vote: viewer.vote ? { targetId: viewer.vote.targetId, reason: viewer.vote.reason } : null,
+        wasRight: revealing ? Boolean(this.reveal.perPlayer?.[viewer.id]?.correct) : null,
+        vote: viewer.vote ? { ballotId: viewer.vote.ballotId } : null,
         prediction: viewer.prediction,
         guess: viewer.guess,
         finalist: this.final?.players.includes(viewer.id) || false,

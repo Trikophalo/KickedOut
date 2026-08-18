@@ -2,7 +2,9 @@
 
 **Konzept- & Umsetzungsdokument · Version 1.0 · Stand: 18.08.2026**
 
-> **Das Spiel ist gebaut.** Dieses Dokument beschreibt den Entwurf; die lauffähige Umsetzung liegt im selben Repository. `npm install && npm start`, dann die Bühne auf `/host` öffnen — siehe [README.md](./README.md). Der Umsetzungsstand entspricht dem MVP aus §7 plus Teilen von V1; was noch offen ist, steht im README.
+> **Das Spiel ist gebaut — und hat sich beim Bauen weiterentwickelt.** Dieses Dokument beschreibt den ursprünglichen Entwurf; die lauffähige Umsetzung liegt im selben Repository (`npm install && npm start`, siehe [README.md](./README.md)).
+>
+> Zwei Entscheidungen weichen bewusst ab: Antworten werden **frei getippt** statt aus vier Optionen gewählt (§1.3 und Annahme A3), und beim Voting wählt die Runde die **dümmste Antwort** statt eines Spielers mit Pflicht-Begründung (§1.4). Beides zielt auf dasselbe: Unter Zeitdruck getippte Antworten sind der eigentliche Spaß, und der Rauswurf soll daran hängen. Außerdem startet das Spiel schon **ab zwei Personen** (dann direkt als Duell) und läuft am PC in einem Fenster — Bühne und Eingabe zusammen.
 
 Ein Browser-Partyquiz für 4–9 echte Menschen in Echtzeit. Ein großer, gemeinsamer Screen (TV/Beamer/Laptop) zeigt die Show, jedes Smartphone wird zum persönlichen Buzzer. Richtige Antworten füllen den gemeinsamen Pott, falsche lassen die Kette gefrieren — und nach jeder Runde entscheidet ein anonymes Voting mit Pflicht-Begründung, wer fliegt. Kein Download, keine Accounts, keine KI-Mitspieler. Nur ein bissiger KI-Moderator, der die Rauswürfe kommentiert.
 

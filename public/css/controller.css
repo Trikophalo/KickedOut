@@ -1,30 +1,39 @@
 /* ============================================================
-   Der Handy-Controller. Alles Wichtige in der Daumenzone,
-   Touch-Ziele ab 56 px, jede Eingabe wird spürbar quittiert.
-   Das Handy zeigt nie das Sieger-Drama — das gehört der Bühne.
-   Es zeigt: Was kann ich gerade tun, und wie steht es um mich.
+   Die Spielansicht.
+
+   Am Handy: eine Spalte, alles Wichtige in der Daumenzone.
+   Am PC: eine ruhige, zentrierte Bühne mit Seitenleiste — Buttons
+   und Eingabefelder bekommen eine Maximalbreite, damit nichts über
+   den ganzen Bildschirm gezogen aussieht.
    ============================================================ */
 
 .ctl {
   position: relative; z-index: 1;
   min-height: 100vh; min-height: 100dvh;
-  display: grid; grid-template-rows: auto 1fr auto;
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: auto minmax(0, 1fr) auto auto auto;
+  grid-template-areas: 'top' 'main' 'side' 'mod' 'foot';
   padding: max(0.7rem, env(safe-area-inset-top)) 0.85rem max(0.7rem, env(safe-area-inset-bottom));
   gap: 0.6rem;
 }
 
-.ctl-top { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; }
+/* ---------------------------------------------------------- Kopfzeile */
+
+.ctl-top { grid-area: top; display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; }
 .me { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
 .me .nick { font-family: var(--font-display); font-weight: 800; font-size: 1rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .me .role { font-size: 0.72rem; color: var(--muted); }
-.hudmini { display: flex; align-items: center; gap: 0.4rem; flex: 0 0 auto; }
-.hudmini .pot { font-size: 0.85rem; }
+.hudmini { display: flex; align-items: center; gap: 0.45rem; flex: 0 0 auto; }
+.hudmini .icon-btn { margin-left: 0.3rem; }
+.hudmini .pot { font-size: 0.85rem; cursor: default; }
+.hudmini .chip { cursor: default; }
+.hudmini .timer { font-size: 0.82rem; }
 
-/* Der mittlere Bereich scrollt für sich, Kopf- und Fußzeile bleiben stehen.
-   Zentriert wird über margin-block:auto statt justify-content:center — sonst
-   schneidet der Browser bei zu hohem Inhalt oben ab, und das Abgeschnittene
-   ist nicht mehr erreichbar (auf kleinen Handys sofort spürbar). */
+/* ---------------------------------------------------------- Hauptbereich */
+
 .ctl-main {
+  grid-area: main;
   display: flex; flex-direction: column; gap: 0.7rem; min-height: 0;
   overflow-y: auto; overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch; padding: 0.15rem;
@@ -33,36 +42,58 @@
 .ctl-main > .grow, .ctl-main > .join {
   flex: 1 0 auto; display: flex; flex-direction: column;
   justify-content: center; gap: 0.7rem;
+  /* Der Inhalt bleibt lesbar breit statt sich über 27 Zoll zu strecken. */
+  width: 100%; max-width: 34rem; margin-inline: auto;
 }
+
+.ctl-mod { grid-area: mod; min-height: 2.6rem; display: flex; align-items: center; justify-content: center; }
+.ctl-mod .moderator { max-width: 46rem; font-size: 0.92rem; }
 
 /* ---------------------------------------------------------- Beitritt */
 
-.join { display: flex; flex-direction: column; gap: 0.9rem; }
-.join h1 { font-size: 1.8rem; text-align: center; }
+.join h1 { font-size: 1.9rem; text-align: center; }
 .join .lead { color: var(--muted); text-align: center; font-size: 0.92rem; }
 .builder { display: grid; gap: 0.6rem; }
-.builder .row { display: flex; gap: 0.4rem; overflow-x: auto; padding: 0.2rem; scrollbar-width: none; }
-.builder .row::-webkit-scrollbar { display: none; }
+.builder .row { display: flex; gap: 0.4rem; overflow-x: auto; padding: 0.25rem; scrollbar-width: thin; }
 .builder .opt {
   flex: 0 0 auto; width: 52px; height: 52px; border-radius: 50%;
   display: grid; place-items: center; font-size: 1.5rem;
   background: rgba(255,255,255,.08); border: 3px solid transparent;
-  transition: transform 140ms cubic-bezier(.2,1.6,.4,1), border-color 140ms;
+  transition: transform 140ms cubic-bezier(.2,1.6,.4,1), border-color 140ms, background 140ms;
 }
+.builder .opt:hover { background: rgba(255,255,255,.18); transform: translateY(-3px); }
 .builder .opt.on { border-color: #fff; transform: scale(1.12); }
 .builder .label { font-family: var(--font-display); font-weight: 700; font-size: 0.8rem; color: var(--muted); }
-.preview { display: grid; place-items: center; padding: 0.4rem 0; }
+.preview { display: grid; place-items: center; padding: 0.5rem 0; }
 .preview .avatar { --size: 96px; }
+.codefield {
+  text-transform: uppercase; letter-spacing: 0.3em; text-align: center;
+  font-weight: 800; font-family: var(--font-display); font-size: 1.5rem;
+}
 
-/* ---------------------------------------------------------- Antworten */
+/* ---------------------------------------------------------- Frage & Eingabe */
 
 .qtext {
-  font-family: var(--font-display); font-weight: 700; font-size: 1.02rem;
-  text-align: center; line-height: 1.3; color: var(--text);
+  font-family: var(--font-display); font-weight: 700; font-size: 1.18rem;
+  text-align: center; line-height: 1.32; color: var(--text);
+  background: rgba(255,255,255,.05); border: 1px solid var(--line);
+  border-radius: var(--r-sm); padding: 0.9rem 1rem;
 }
-.ctl .answers { grid-template-columns: 1fr; gap: 0.55rem; }
-.ctl .answer { font-size: 1.02rem; min-height: 60px; padding: 0.7em 0.9em; }
-.ctl .answer .glyph { font-size: 1.2em; }
+
+/* Das Eingabefeld ist der Mittelpunkt des Spiels: groß, offensichtlich,
+   und es verrät durch seine Farbe, wie viel Zeit noch bleibt. */
+.answerbox { display: grid; gap: 0.5rem; justify-items: center; }
+.answerbox > * { width: 100%; max-width: 26rem; }
+.answerfield {
+  font-family: var(--font-display); font-weight: 800;
+  font-size: clamp(1.15rem, 4vw, 1.6rem); text-align: center;
+  padding: 0.75em 0.7em; border-width: 3px;
+  background: rgba(255,255,255,.09);
+}
+.answerfield:focus { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(90,167,255,.18); }
+.answerfield.locked { border-color: var(--mint); background: rgba(45,212,168,.13); }
+.answerfield.urgent { border-color: var(--coral); animation: pulseRing 700ms ease-in-out infinite; }
+.answerfield:disabled { opacity: 0.75; }
 
 .status {
   text-align: center; font-family: var(--font-display); font-weight: 800;
@@ -71,54 +102,85 @@
 .status.wait { color: var(--muted); }
 .status.bad { color: var(--coral); }
 
-/* ---------------------------------------------------------- Voting */
-
-.cands { display: grid; gap: 0.45rem; }
-.cand {
-  display: flex; align-items: center; gap: 0.6rem;
-  background: rgba(255,255,255,.07); border: 2px solid var(--line);
-  border-radius: var(--r-sm); padding: 0.55rem 0.7rem; min-height: 58px;
-  font-family: var(--font-display); font-weight: 700; text-align: left; width: 100%;
-  transition: transform 140ms cubic-bezier(.2,1.6,.4,1), border-color 160ms, background 160ms;
+.solution {
+  text-align: center; font-family: var(--font-display); font-weight: 800;
+  font-size: 1.05rem; color: var(--gold);
 }
-.cand .sub { font-family: var(--font-body); font-weight: 400; font-size: 0.78rem; color: var(--muted); display: block; }
-.cand.on { border-color: var(--vote); background: rgba(139,92,246,.22); transform: scale(1.02); }
-.cand:active { transform: scale(0.985); }
-.cand.self { opacity: 0.4; }
+.solution small { display: block; font-family: var(--font-body); font-weight: 400; font-size: 0.82rem; color: var(--muted); }
 
-.chips { display: flex; flex-wrap: wrap; gap: 0.35rem; }
-.chips .chip { padding: 0.35em 0.75em; font-size: 0.82rem; }
-.chips .chip.on { background: var(--vote); border-color: var(--vote); color: #fff; }
+/* ---------------------------------------------------------- Stimmzettel */
+
+.ballot { display: grid; gap: 0.5rem; }
+.answercard {
+  display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 0.6rem;
+  background: rgba(255,255,255,.07); border: 2px solid var(--line);
+  border-radius: var(--r-sm); padding: 0.7rem 0.85rem; width: 100%; text-align: left;
+  transition: transform 150ms cubic-bezier(.2,1.5,.4,1), border-color 160ms, background 160ms;
+}
+.answercard:hover:not(:disabled) { border-color: var(--vote-soft); background: rgba(255,255,255,.12); transform: translateY(-2px); }
+.answercard.on { border-color: var(--vote); background: rgba(139,92,246,.24); transform: scale(1.015); }
+.answercard:disabled { cursor: not-allowed; }
+.answercard.mine { opacity: 0.5; }
+.answercard .said {
+  font-family: var(--font-display); font-weight: 800; font-size: 1.05rem;
+  overflow-wrap: anywhere;
+}
+.answercard .said.blank { color: var(--muted); font-style: italic; font-weight: 600; }
+.answercard .ctx { display: block; font-family: var(--font-body); font-weight: 400; font-size: 0.75rem; color: var(--muted); margin-top: 0.15rem; }
+.answercard .mark { font-size: 1.2rem; opacity: 0.8; }
 
 /* ---------------------------------------------------------- Geister */
 
 .ghostbox {
   background: rgba(139,92,246,.14); border: 1px solid rgba(139,92,246,.42);
-  border-radius: var(--r-sm); padding: 0.8rem; text-align: center;
+  border-radius: var(--r-sm); padding: 0.9rem; text-align: center;
 }
 .ghostbox h2 { font-size: 1.15rem; color: var(--vote-soft); }
 .ghostbox p { font-size: 0.86rem; color: var(--muted); margin-top: 0.2rem; }
 .powers { display: flex; gap: 0.4rem; justify-content: center; flex-wrap: wrap; margin-top: 0.6rem; }
-.powers .chip { background: rgba(255,255,255,.1); }
 
-/* ---------------------------------------------------------- Chat & Emoji */
+/* ---------------------------------------------------------- Spielerliste */
 
-.ctl-foot { display: grid; gap: 0.4rem; }
+.cands { display: grid; gap: 0.45rem; }
+.cand {
+  display: flex; align-items: center; gap: 0.6rem;
+  background: rgba(255,255,255,.07); border: 2px solid var(--line);
+  border-radius: var(--r-sm); padding: 0.55rem 0.7rem; min-height: 56px;
+  font-family: var(--font-display); font-weight: 700; text-align: left; width: 100%;
+  transition: transform 150ms cubic-bezier(.2,1.5,.4,1), border-color 160ms, background 160ms;
+}
+.cand:hover:not(:disabled) { background: rgba(255,255,255,.12); transform: translateY(-2px); }
+.cand .sub { font-family: var(--font-body); font-weight: 400; font-size: 0.78rem; color: var(--muted); display: block; }
+.cand.on { border-color: var(--vote); background: rgba(139,92,246,.22); }
+.cand.self { opacity: 0.45; }
+.cand.out { opacity: 0.5; }
+.cand .badge { margin-left: auto; font-size: 1.05rem; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.chips .chip { padding: 0.35em 0.75em; font-size: 0.82rem; }
+.chips button.chip { transition: transform 140ms cubic-bezier(.2,1.5,.4,1), background 140ms; }
+.chips button.chip:hover { background: rgba(255,255,255,.2); transform: translateY(-2px); }
+.chips .chip.on { background: var(--vote); border-color: var(--vote); color: #fff; }
+
+/* ---------------------------------------------------------- Fußzeile */
+
+.ctl-foot { grid-area: foot; display: grid; gap: 0.4rem; }
 .chatbar { display: flex; gap: 0.4rem; }
 .chatbar .field { flex: 1; min-height: 46px; }
 .chatbar .btn { min-width: 52px; padding: 0.5em 0.8em; }
-.emojis { display: flex; gap: 0.3rem; justify-content: space-between; }
+.emojis { display: flex; gap: 0.3rem; }
 .emojis button {
-  flex: 1; font-size: 1.35rem; padding: 0.3rem 0; border-radius: 12px;
+  flex: 1; font-size: 1.3rem; padding: 0.3rem 0; border-radius: 12px;
   background: rgba(255,255,255,.06); border: 1px solid var(--line);
-  transition: transform 130ms cubic-bezier(.2,1.6,.4,1);
+  transition: transform 130ms cubic-bezier(.2,1.6,.4,1), background 130ms;
 }
+.emojis button:hover { background: rgba(255,255,255,.16); transform: translateY(-3px) scale(1.06); }
 .emojis button:active { transform: scale(0.86); }
-.emojis button:disabled { opacity: 0.35; }
+.emojis button:disabled { opacity: 0.35; transform: none; }
 
 .chatlog {
   display: flex; flex-direction: column; gap: 2px; font-size: 0.82rem;
-  max-height: 5.5rem; overflow-y: auto; padding: 0.4rem 0.5rem;
+  max-height: 6rem; overflow-y: auto; padding: 0.4rem 0.5rem;
   background: rgba(0,0,0,.18); border-radius: var(--r-sm);
 }
 .held { font-size: 0.74rem; color: var(--gold); text-align: center; }
@@ -129,15 +191,15 @@
   position: fixed; inset: 0; z-index: 50; display: grid; place-items: center;
   text-align: center; padding: 2rem; animation: flashIn 260ms cubic-bezier(.2,1.4,.4,1);
 }
-.flash .big { font-family: var(--font-display); font-weight: 800; font-size: clamp(2rem, 12vw, 3.6rem); line-height: 1.05; }
-.flash .sub { font-family: var(--font-display); font-weight: 600; font-size: 1.1rem; margin-top: 0.5rem; opacity: 0.85; }
+.flash .big { font-family: var(--font-display); font-weight: 800; font-size: clamp(2rem, 9vw, 3.4rem); line-height: 1.05; }
+.flash .sub { font-family: var(--font-display); font-weight: 600; font-size: 1.05rem; margin-top: 0.5rem; opacity: 0.85; }
 .flash.good { background: var(--mint); color: #06301f; }
 .flash.bad { background: var(--coral); color: #3d0808; }
 .flash.ice { background: #9ad6f5; color: #0b2b3a; }
 .flash.out { background: var(--coral); color: #fff; animation: tipOver 700ms cubic-bezier(.3,1.4,.4,1); }
 .flash.stay { background: var(--mint); color: #06301f; }
 .flash.gold { background: var(--gold); color: #3d2a00; }
-@keyframes flashIn { from { opacity: 0; transform: scale(1.15); } to { opacity: 1; transform: none; } }
+@keyframes flashIn { from { opacity: 0; transform: scale(1.12); } to { opacity: 1; transform: none; } }
 @keyframes tipOver { from { opacity: 0; transform: rotate(-14deg) scale(1.3); } to { opacity: 1; transform: none; } }
 
 /* ---------------------------------------------------------- Ergebnis */
@@ -146,13 +208,101 @@
 .statrow {
   display: flex; justify-content: space-between; align-items: baseline;
   background: rgba(255,255,255,.06); border-radius: 10px; padding: 0.45rem 0.7rem;
+  transition: background 150ms;
 }
+.statrow:hover { background: rgba(255,255,255,.12); }
 .statrow .k { font-size: 0.85rem; color: var(--muted); }
 .statrow .v { font-family: var(--font-display); font-weight: 800; }
 
 .settings { display: grid; gap: 0.55rem; }
 .settings .group { display: grid; gap: 0.3rem; }
 .settings .group > .label { font-family: var(--font-display); font-weight: 700; font-size: 0.85rem; color: var(--muted); }
+
+/* ---------------------------------------------------------- Seitenleiste */
+
+/* Am Handy schrumpft die Seitenleiste auf eine Zeile mit Mitspielern —
+   der Chat sitzt dort unten bei der Eingabe, wo der Daumen ohnehin ist. */
+.side { grid-area: side; min-height: 0; }
+.side-card {
+  background: rgba(255,255,255,.05); border: 1px solid var(--line);
+  border-radius: var(--r); padding: 0.5rem 0.6rem; display: flex; flex-direction: column; gap: 0.4rem;
+  min-height: 0;
+}
+.side-card > h3 { display: none; }
+.side-card > h3 {
+  font-family: var(--font-display); font-size: 0.78rem; letter-spacing: 0.09em;
+  text-transform: uppercase; color: var(--muted);
+}
+.side .roster {
+  display: flex; gap: 0.35rem; overflow-x: auto; min-height: 0;
+  scrollbar-width: thin; padding-bottom: 0.15rem;
+}
+.side .roster .rosterrow { flex: 0 0 auto; }
+.side .roster .name { max-width: 5.5rem; }
+.rosterrow {
+  display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0.4rem;
+  border-radius: 10px; font-size: 0.88rem; transition: background 150ms;
+}
+.rosterrow:hover { background: rgba(255,255,255,.08); }
+.rosterrow .name { font-family: var(--font-display); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rosterrow .tag { margin-left: auto; font-size: 0.95rem; }
+.rosterrow.out { opacity: 0.5; }
+.rosterrow.me .name { color: var(--gold); }
+
+/* ============================================================
+   PC-Layout: zwei Spalten, ruhige Mitte, Seitenleiste rechts.
+   ============================================================ */
+
+@media (min-width: 960px) {
+  body { overflow: hidden; }
+  .ctl {
+    max-width: 1240px; margin-inline: auto;
+    height: 100vh; height: 100dvh;
+    padding: 1.1rem 1.4rem;
+    gap: 0.8rem 1.2rem;
+    grid-template-columns: minmax(0, 1fr) 310px;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      'top  top'
+      'main side'
+      'mod  foot';
+  }
+  .ctl-main { padding: 0.3rem; }
+  .ctl-main > .grow, .ctl-main > .join { max-width: 34rem; gap: 0.9rem; }
+
+  /* Am PC wird daraus eine echte Spalte: Mitspieler oben, Chat darunter. */
+  .side { overflow: hidden; }
+  .side-card { height: 100%; padding: 0.85rem; gap: 0.5rem; }
+  .side-card > h3 { display: block; }
+  .side .roster { display: grid; gap: 0.3rem; overflow-y: auto; overflow-x: hidden; }
+  .side .roster .name { max-width: none; }
+
+  .ctl-foot { align-self: end; gap: 0.5rem; }
+  .ctl-mod { justify-content: flex-start; }
+  .ctl-mod .moderator { margin: 0; }
+
+  .me .nick { font-size: 1.1rem; }
+  .hudmini .pot { font-size: 1rem; }
+  .hudmini .timer { font-size: 1rem; }
+
+  .qtext { font-size: 1.45rem; padding: 1.05rem 1.4rem; max-width: 30rem; margin-inline: auto; }
+  .answerfield { font-size: 1.6rem; }
+  .answerbox > * { max-width: 24rem; }
+  .ballot, .cands, .mystats { max-width: 30rem; margin-inline: auto; width: 100%; }
+
+  /* Kein Button zieht sich über die volle Breite — er bekommt eine
+     natürliche Größe und steht mittig. */
+  .btn.block { width: auto; max-width: 22rem; margin-inline: auto; min-width: 14rem; }
+  .join .btn.block, .answerbox .btn.block { max-width: 26rem; }
+  .chatlog { max-height: 11rem; min-height: 5rem; }
+  .emojis button { font-size: 1.15rem; }
+  .flash .big { font-size: 4rem; }
+}
+
+@media (min-width: 1500px) {
+  .ctl { max-width: 1400px; grid-template-columns: minmax(0, 1fr) 340px; }
+  .ctl-main > .grow { max-width: 36rem; }
+}
 
 #toasts { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 60; display: flex; flex-direction: column; gap: 5px; align-items: center; }
 .toast {

@@ -358,8 +358,8 @@ export class QuestionService {
       if (added) {
         this.external.data.items = [...this.pool.values()]
           .filter((q) => q.source !== 'bank')
-          .map((q) => ({ id: q.id, cat: q.cat, diff: q.diff, text: q.text, options: q.options,
-            correct: q.correct, fact: q.fact, source: q.source, cite: q.cite, ttl: q.ttl }));
+          .map((q) => ({ id: q.id, cat: q.cat, diff: q.diff, text: q.text, answer: q.answer,
+            accept: q.accept, fact: q.fact, source: q.source, cite: q.cite, ttl: q.ttl }));
         this.external.touch();
       }
       this.lastRefill = Date.now();

@@ -1,4 +1,4 @@
-import { normalize, hash, shuffle } from '../util.js';
+import { normalize, hash } from '../util.js';
 import { DIFFICULTIES } from '../config.js';
 
 const CATEGORIES = new Set(['allgemeinwissen', 'wissenschaft', 'geografie']);
@@ -6,10 +6,9 @@ const CATEGORIES = new Set(['allgemeinwissen', 'wissenschaft', 'geografie']);
 // Bühnentauglichkeit: Der Fragetext läuft auf einem Fernseher in ~48px.
 // Alles darüber bricht in drei Zeilen und zerstört das Layout.
 const MAX_TEXT = 110;
-const MAX_OPTION = 42;
+const MAX_ANSWER = 40;
 
 const STYLE_TRAPS = [
-  { re: /\balle der genannten\b|\bkeine der genannten\b|\balle antworten\b/i, why: 'Meta-Antwortoption' },
   { re: /\bnicht\b[^.?]*\bnicht\b/i, why: 'Doppelte Verneinung' },
   { re: /\baktuell\b|\bderzeit\b|\bmomentan\b|\bheute\b/i, why: 'Zeitgebundene Formulierung ohne TTL' },
 ];
@@ -25,17 +24,15 @@ export function validate(q) {
   if (!q.text || typeof q.text !== 'string') problems.push('Fragetext fehlt');
   if (!CATEGORIES.has(q.cat)) problems.push(`Unbekannte Kategorie: ${q.cat}`);
   if (!DIFFICULTIES.includes(q.diff)) problems.push(`Unbekannte Schwierigkeit: ${q.diff}`);
-  if (!Array.isArray(q.options) || q.options.length !== 4) problems.push('Genau 4 Optionen nötig');
-  else {
-    if (q.options.some((o) => typeof o !== 'string' || !o.trim())) problems.push('Leere Option');
-    if (q.options.some((o) => o.length > MAX_OPTION)) problems.push('Option zu lang für die Bühne');
-    // Bewusst nur Groß-/Kleinschreibung und Leerraum angleichen: Die harte
-    // Normalisierung wirft Satz- und Rechenzeichen weg, und bei Antworten wie
-    // „a² + b² = c²“ gegen „a² − b² = c²“ steckt der Unterschied genau dort.
-    const seen = new Set(q.options.map((o) => o.toLowerCase().replace(/\s+/g, ' ').trim()));
-    if (seen.size !== q.options.length) problems.push('Doppelte Optionstexte');
-  }
-  if (!Number.isInteger(q.correct) || q.correct < 0 || q.correct > 3) problems.push('correct außerhalb 0..3');
+
+  // Das Spiel läuft auf freie Texteingabe. Eine Frage braucht deshalb nur noch
+  // eine Lösung — Antwortoptionen aus dem alten Format werden weiterhin
+  // gelesen (die erwartete Lösung ist dann options[correct]).
+  const answer = answerOf(q);
+  if (!answer) problems.push('Keine Lösung hinterlegt');
+  else if (answer.length > MAX_ANSWER) problems.push('Lösung zu lang zum Eintippen');
+  if (q.accept && !Array.isArray(q.accept)) problems.push('accept muss eine Liste sein');
+
   if (q.text && q.text.length > MAX_TEXT) problems.push('Fragetext zu lang für die Bühne');
   if (q.text) {
     for (const trap of STYLE_TRAPS) {
@@ -43,6 +40,16 @@ export function validate(q) {
     }
   }
   return problems;
+}
+
+/** Die erwartete Lösung — direkt aus `answer` oder aus dem alten Optionsformat. */
+export function answerOf(q) {
+  if (typeof q.answer === 'string' && q.answer.trim()) return q.answer.trim();
+  if (Array.isArray(q.options) && Number.isInteger(q.correct)) {
+    const fromOptions = q.options[q.correct];
+    if (typeof fromOptions === 'string' && fromOptions.trim()) return fromOptions.trim();
+  }
+  return null;
 }
 
 /**
@@ -60,7 +67,7 @@ export function factKey(q) {
   const stop = new Set(['welcher', 'welche', 'welches', 'wie', 'was', 'wo', 'wer', 'ist', 'sind',
     'der', 'die', 'das', 'ein', 'eine', 'einen', 'von', 'des', 'dem', 'den', 'hat', 'heißt', 'lautet']);
   const core = normalize(q.text).split(' ').filter((w) => w.length > 2 && !stop.has(w)).sort().join('-');
-  return `auto:${hash(core + '|' + normalize(q.options[q.correct] || ''))}`;
+  return `auto:${hash(core + '|' + normalize(answerOf(q) || ''))}`;
 }
 
 function tokens(q) {
@@ -78,20 +85,17 @@ export function similar(a, b, threshold = 0.72) {
   return shared / union >= threshold;
 }
 
-/**
- * Bringt eine Frage in die kanonische Poolform und mischt die Antworten neu,
- * damit die richtige Lösung nicht quellenbedingt immer auf derselben Position steht.
- */
+/** Bringt eine Frage in die kanonische Poolform, die der Spielpfad erwartet. */
 export function canonicalize(q, source) {
-  const correctText = q.options[q.correct];
-  const options = shuffle(q.options);
   return {
     id: q.id,
     cat: q.cat,
     diff: q.diff,
     text: q.text.trim(),
-    options,
-    correct: options.indexOf(correctText),
+    answer: answerOf(q),
+    // Weitere Schreibweisen, die als richtig zählen. Die Bewertung verzeiht
+    // Tippfehler ohnehin — hier stehen echte Alternativen („USA"/„Vereinigte Staaten").
+    accept: Array.isArray(q.accept) ? q.accept.filter((a) => typeof a === 'string' && a.trim()) : [],
     fact: factKey(q),
     hash: textHash(q),
     source: source || q.source || 'bank',

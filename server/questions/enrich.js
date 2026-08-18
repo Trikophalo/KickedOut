@@ -4,9 +4,8 @@
  * Zwei Rollen, bewusst getrennt:
  *   1. Lokalisierer — formt englische Rohfragen zu natürlichem Deutsch um
  *      (Maße, Bezugsraum, Kulturkontext), nicht bloß Wort-für-Wort-Übersetzung.
- *   2. Blind-Solver — beantwortet Fragen, OHNE die vorgesehene Lösung zu kennen,
- *      und stuft jeden Distraktor ein. Weicht er ab oder hält er einen
- *      Distraktor für vertretbar, fliegt die Frage raus.
+ *   2. Blind-Solver — beantwortet Fragen frei, OHNE die vorgesehene Lösung zu
+ *      kennen. Weicht er ab oder hält er die Frage für mehrdeutig, fliegt sie raus.
  *
  * Beides läuft ausschließlich im asynchronen Nachschub-Job, nie im Spielpfad.
  * Ohne ANTHROPIC_API_KEY ist dieses Modul inert und der Pool lebt vom
@@ -16,6 +15,8 @@
  * unabhängige Fehler sind der ganze Sinn der Prüfung. Steuerbar über
  * KO_LLM_MODEL und KO_SOLVER_MODEL.
  */
+
+import { grade } from './grade.js';
 
 const GEN_MODEL = process.env.KO_LLM_MODEL || 'claude-opus-5';
 const SOLVER_MODEL = process.env.KO_SOLVER_MODEL || 'claude-opus-5';
@@ -81,10 +82,10 @@ const LOCALIZE_TOOL = {
             ref: { type: 'string', description: 'Die ref der Ausgangsfrage.' },
             brauchbar: { type: 'boolean', description: 'false, wenn die Frage für ein deutsches Publikum nicht taugt.' },
             text: { type: 'string' },
-            richtig: { type: 'string' },
-            falsch: { type: 'array', items: { type: 'string' } },
+            loesung: { type: 'string', description: 'Die Lösung, kurz genug zum Eintippen.' },
+            alternativen: { type: 'array', items: { type: 'string' }, description: 'Weitere gültige Schreibweisen.' },
           },
-          required: ['ref', 'brauchbar', 'text', 'richtig', 'falsch'],
+          required: ['ref', 'brauchbar', 'text', 'loesung', 'alternativen'],
           additionalProperties: false,
         },
       },
@@ -99,14 +100,15 @@ const LOCALIZE_SYSTEM = `Du lokalisierst englische Quizfragen für ein deutschsp
 Regeln:
 - Übersetze nicht Wort für Wort, sondern formuliere natürliches, flüssiges Deutsch.
 - Rechne Maßeinheiten in metrische Einheiten um und passe den Bezugsraum an, wo es sinnvoll ist.
-- Der Fragetext darf höchstens 110 Zeichen haben, jede Antwortoption höchstens 42 Zeichen — die Frage wird auf einem Fernseher groß angezeigt.
-- Genau eine Antwort darf richtig sein. Wenn ein Distraktor ebenfalls vertretbar wäre, formuliere ihn um oder setze brauchbar auf false.
+- Der Fragetext darf höchstens 110 Zeichen haben, die Lösung höchstens 40 — sie wird unter Zeitdruck frei eingetippt.
+- Es muss genau eine kurze, eindeutige Lösung geben. Fragen, auf die mehrere Antworten passen, sind unbrauchbar.
+- Trage unter alternativen jede weitere Schreibweise ein, die man gelten lassen muss (Abkürzung, Langform, gängige Variante).
 - Setze brauchbar auf false bei: rein US-spezifischem Popkultur- oder Sportwissen ohne deutschen Bezug, Wortspielen die sich nicht übersetzen lassen, zeitgebundenen Fakten (aktuelle Amtsträger, Rekorde, Firmenzahlen), sowie bei allem, dessen Richtigkeit du anzweifelst.
 - Erfinde keine neuen Fakten. Wenn du dir bei der Richtigkeit unsicher bist, setze brauchbar auf false.`;
 
 const SOLVE_TOOL = {
   name: 'loese_fragen',
-  description: 'Gibt für jede Frage die gewählte Antwort und die Einschätzung der Distraktoren zurück.',
+  description: 'Gibt für jede Frage die eigene Antwort und eine Einschätzung zur Eindeutigkeit zurück.',
   input_schema: {
     type: 'object',
     properties: {
@@ -116,12 +118,12 @@ const SOLVE_TOOL = {
           type: 'object',
           properties: {
             ref: { type: 'string' },
-            wahl: { type: 'integer', description: 'Index der richtigen Antwort, 0 bis 3.' },
+            antwort: { type: 'string', description: 'Deine Antwort, so kurz wie möglich.' },
             sicher: { type: 'boolean', description: 'false, wenn du geraten hast.' },
-            mehrdeutig: { type: 'boolean', description: 'true, wenn mehr als eine Option vertretbar richtig ist.' },
+            mehrdeutig: { type: 'boolean', description: 'true, wenn mehr als eine Antwort vertretbar richtig ist.' },
             begruendung: { type: 'string', description: 'Ein knapper Satz.' },
           },
-          required: ['ref', 'wahl', 'sicher', 'mehrdeutig', 'begruendung'],
+          required: ['ref', 'antwort', 'sicher', 'mehrdeutig', 'begruendung'],
           additionalProperties: false,
         },
       },
@@ -133,9 +135,9 @@ const SOLVE_TOOL = {
 
 const SOLVE_SYSTEM = `Du bist ein unabhängiger Prüfer für Quizfragen und kennst die vorgesehene Lösung nicht.
 
-Beantworte jede Frage nach bestem Wissen. Setze sicher auf false, wenn du raten musst.
-Setze mehrdeutig auf true, sobald mehr als eine der angebotenen Optionen vertretbar richtig wäre,
-die Frage unpräzise gestellt ist oder die Antwort vom Stichtag abhängt.
+Beantworte jede Frage frei, ohne Auswahlmöglichkeiten. Setze sicher auf false, wenn du raten musst.
+Setze mehrdeutig auf true, sobald mehr als eine Antwort vertretbar wäre, die Frage unpräzise
+gestellt ist oder die Antwort vom Stichtag abhängt.
 Sei streng: Eine Frage, über die man streiten kann, ist für ein Partyspiel unbrauchbar.`;
 
 /**
@@ -147,12 +149,7 @@ export async function localize(rawItems) {
   if (!client) return [];
   const out = [];
   for (const group of chunk(rawItems, BATCH)) {
-    const payload = group.map((q, i) => ({
-      ref: String(i),
-      question: q.text,
-      correct: q.options[q.correct],
-      wrong: q.options.filter((_, idx) => idx !== q.correct),
-    }));
+    const payload = group.map((q, i) => ({ ref: String(i), question: q.text, correct: q.answer }));
     try {
       const result = await callTool(client, {
         model: GEN_MODEL,
@@ -164,12 +161,12 @@ export async function localize(rawItems) {
       for (const item of result.fragen || []) {
         const src = group[Number(item.ref)];
         if (!src || !item.brauchbar) continue;
-        if (!Array.isArray(item.falsch) || item.falsch.length !== 3) continue;
+        if (!item.loesung) continue;
         out.push({
           ...src,
           text: item.text,
-          options: [item.richtig, ...item.falsch],
-          correct: 0,
+          answer: item.loesung,
+          accept: Array.isArray(item.alternativen) ? item.alternativen : [],
           lang: 'de',
         });
       }
@@ -182,8 +179,8 @@ export async function localize(rawItems) {
 }
 
 /**
- * Stufe 2: Blind-Solver. Bekommt die Optionen in der Poolreihenfolge, aber
- * nirgends einen Hinweis darauf, welche davon als richtig gilt.
+ * Stufe 2: Blind-Solver. Bekommt nur den Fragetext und nirgends einen Hinweis
+ * auf die vorgesehene Lösung.
  * Nur Fragen, bei denen der Solver sicher und eindeutig die vorgesehene
  * Lösung trifft, kommen durch.
  */
@@ -194,7 +191,7 @@ export async function blindSolve(questions) {
   const accepted = [];
   const verdicts = [];
   for (const group of chunk(questions, BATCH)) {
-    const payload = group.map((q, i) => ({ ref: String(i), frage: q.text, optionen: q.options }));
+    const payload = group.map((q, i) => ({ ref: String(i), frage: q.text }));
     try {
       const result = await callTool(client, {
         model: SOLVER_MODEL,
@@ -207,7 +204,9 @@ export async function blindSolve(questions) {
       group.forEach((q, i) => {
         const verdict = byRef.get(String(i));
         if (!verdict) return; // Keine Einschätzung: im Zweifel nicht aufnehmen.
-        const ok = verdict.wahl === q.correct && verdict.sicher && !verdict.mehrdeutig;
+        // Der Solver kennt die vorgesehene Lösung nicht — verglichen wird mit
+        // derselben Nachsicht, die auch echte Spieler bekommen.
+        const ok = grade(verdict.antwort, q).correct && verdict.sicher && !verdict.mehrdeutig;
         verdicts.push({ id: q.id, ok, reason: verdict.begruendung });
         if (ok) accepted.push(q);
       });

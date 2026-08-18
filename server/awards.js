@@ -53,6 +53,20 @@ const AWARDS = [
     },
   },
   {
+    key: 'tippfehler',
+    label: 'Kreativschreiber',
+    icon: '✍️',
+    hint: 'Meiste Antworten, die niemand kannte',
+    pick: (players) => {
+      const eligible = players.filter((p) => p.answered >= 3);
+      if (!eligible.length) return null;
+      const worst = eligible.reduce((a, b) => ((a.answered - a.correct) >= (b.answered - b.correct) ? a : b));
+      const misses = worst.answered - worst.correct;
+      if (misses < 2) return null;
+      return { id: worst.id, detail: `${misses} frei erfundene Antworten` };
+    },
+  },
+  {
     key: 'fels',
     label: 'Fels in der Brandung',
     icon: '🗿',

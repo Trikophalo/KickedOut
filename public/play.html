@@ -2,8 +2,8 @@
 <html lang="de">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
-<title>KICKED OUT — Controller</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>KICKED OUT — Spielen</title>
 <meta name="theme-color" content="#1E1B4B">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎮</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -22,23 +22,37 @@
   <header class="ctl-top" id="ctlTop" hidden>
     <div class="me" id="meBox"></div>
     <div class="hudmini">
-      <span class="pot" id="pot">🪙 0</span>
-      <span class="chip" id="chainChip">×1</span>
+      <span class="pot" id="pot" data-tip="Gemeinsamer Pott — den nimmt der Sieger mit">🪙 <span class="tabular" id="potNum">0</span></span>
+      <span class="chip" id="chainChip" data-tip="Ketten-Multiplikator: steigt, wenn alle richtig liegen">×1</span>
+      <span class="chip" id="roundChip" data-tip="Aktuelle Runde" hidden></span>
+      <span class="timer" id="timer" data-tip="Verbleibende Zeit" data-tip-side="left" hidden><span>–</span></span>
+      <button class="icon-btn" id="settingsBtn" data-tip="Einstellungen (Esc)" data-tip-side="left" aria-label="Einstellungen">⚙️</button>
     </div>
   </header>
 
   <main class="ctl-main" id="main"></main>
 
+  <aside class="side" id="side" hidden>
+    <div class="side-card">
+      <h3>Am Tisch</h3>
+      <div class="roster" id="roster"></div>
+    </div>
+  </aside>
+
+  <div class="ctl-mod" id="modSlot"></div>
+
   <footer class="ctl-foot" id="foot" hidden>
+    <div class="chatlog" id="chatlog"></div>
     <form class="chatbar" id="chatbar" autocomplete="off">
       <input class="field" id="chatInput" maxlength="160" placeholder="Sagen, was Sache ist …" aria-label="Chat">
-      <button class="btn ghost" type="submit" aria-label="Senden">➤</button>
+      <button class="btn ghost" type="submit" aria-label="Nachricht senden" data-tip="Senden">➤</button>
     </form>
     <div class="emojis" id="emojis"></div>
   </footer>
 </div>
 
 <div class="flash" id="flash" hidden></div>
+<div id="sheetHost"></div>
 
 <script type="module" src="/js/controller.js"></script>
 </body>

@@ -25,15 +25,16 @@
 <div class="stage" id="stage">
   <header class="hud">
     <div class="hud-left">
-      <span class="pot" id="pot">🪙 <span class="tabular" id="potNum">0</span></span>
-      <span class="chain" id="chain" title="Ketten-Multiplikator"></span>
-      <span class="chip" id="chainLabel">×1</span>
+      <span class="pot" id="pot" data-tip="Gemeinsamer Pott — den nimmt der Sieger mit" data-tip-side="right">🪙 <span class="tabular" id="potNum">0</span></span>
+      <span class="chain" id="chain" data-tip="Für jede fehlerfreie Frage wächst ein Kettenglied"></span>
+      <span class="chip" id="chainLabel" data-tip="Alles zählt derzeit so oft">×1</span>
     </div>
     <div class="hud-right">
-      <span class="chip" id="roundChip">Lobby</span>
-      <span class="chip" id="catChip" hidden></span>
-      <span class="timer" id="timer" hidden><span>–</span></span>
-      <span class="code" id="codeChip"></span>
+      <span class="chip" id="roundChip" data-tip="Aktuelle Runde">Lobby</span>
+      <span class="chip" id="catChip" data-tip="Kategorie dieser Frage" hidden></span>
+      <span class="timer" id="timer" data-tip="Verbleibende Zeit" hidden><span>–</span></span>
+      <span class="code" id="codeChip" data-tip="Raum-Code zum Beitreten" data-tip-side="left"></span>
+      <button class="icon-btn" id="stageSettings" data-tip="Einstellungen (Esc)" data-tip-side="left" aria-label="Einstellungen">⚙️</button>
     </div>
   </header>
 
@@ -48,6 +49,8 @@
     <div class="ticker" id="ticker" aria-live="polite"></div>
   </footer>
 </div>
+
+<div id="sheetHost"></div>
 
 <div class="sound-hint" id="soundHint">
   <div style="max-width:34ch">

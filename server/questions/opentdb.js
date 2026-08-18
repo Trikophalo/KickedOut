@@ -2,6 +2,8 @@ import { id as newId } from '../util.js';
 
 /**
  * Offene Trivia-API als Breiten-Quelle (KONZEPT.md §4.3, Quelle 2).
+ * Das Spiel läuft auf freie Texteingabe — von jeder Frage wird deshalb nur
+ * die Lösung übernommen, die mitgelieferten Distraktoren fallen weg.
  *
  * OpenTDB liefert ausschließlich Englisch. Englische Fragen in einem deutschen
  * Spiel wären ein Bruch — deshalb werden diese Fragen NUR aufgenommen, wenn ein
@@ -48,8 +50,7 @@ async function fetchCategory(category, difficulty, amount, signal) {
       cat: CATEGORY_MAP[category],
       diff: DIFF_MAP[r.difficulty] || 'mittel',
       text: decode(r.question),
-      options: [correct, ...r.incorrect_answers.map(decode)],
-      correct: 0,
+      answer: correct,
       source: 'opentdb',
       cite: 'OpenTDB (CC BY-SA 4.0)',
       lang: 'en',
