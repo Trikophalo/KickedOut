@@ -96,7 +96,7 @@ const MUSIC_MOOD = {
   lobby: ['lobby', 1], intro: ['round', 1], round_intro: ['round', 1], category: ['round', 1], question: ['round', 1],
   reveal: ['round', 1], round_end: ['round', 1], voting: ['voting', 1], vote_reveal: ['voting', 1],
   tiebreak: ['voting', 2], tiebreak_reveal: ['voting', 2], elimination: ['voting', 1],
-  final_intro: ['final', 3], final_draft: ['final', 3], final_question: ['final', 4],
+  final_intro: ['final', 3], final_question: ['final', 4],
   final_reveal: ['final', 4], results: ['results', 2],
 };
 
@@ -148,7 +148,7 @@ function onFx(name, data = {}) {
 
 function render() {
   applyAccent(state.phase);
-  const [mood, intensity] = MUSIC_MOOD[state.phase] || ['lobby', 1];
+  const [mood, intensity] = state.draw?.final ? ['final', 4] : (MUSIC_MOOD[state.phase] || ['lobby', 1]);
   audio.setMood(mood, state.round ? Math.min(4, intensity + state.round - 1) : intensity);
   if (!['elimination', 'final_intro', 'final_question', 'final_reveal', 'results'].includes(state.phase)) {
     if (document.querySelector('.bg.danger') && state.phase !== 'matchPoint') setBackgroundMood(null);
@@ -225,7 +225,7 @@ function updateHud() {
     cat.hidden = true;
   }
 
-  const showTimer = ['question', 'voting', 'tiebreak', 'final_question', 'final_draft'].includes(state.phase);
+  const showTimer = ['question', 'voting', 'tiebreak', 'final_question'].includes(state.phase);
   timerEl.hidden = !showTimer;
   countdown.set(showTimer ? state.phaseEndsAt : null, () => net.now());
 }
@@ -334,7 +334,9 @@ const BUILDERS = {
     const slot = el('div', { class: 'slot' });
     const caption = el('p', { class: 'subline' }, 'Kategorie wird gezogen …');
     scene.append(
-      el('p', { class: 'subline rise' }, `Frage ${draw.index + 1} von ${draw.total}`),
+      el('p', { class: 'subline rise' }, draw.final
+        ? (draw.chaos ? '🎲 Chaos-Frage' : `Finalfrage ${draw.no}`)
+        : `Frage ${draw.index + 1} von ${draw.total}`),
       el('div', { class: 'drawbox rise' }, slot),
       caption);
     spinCategory(slot, draw, {
@@ -467,18 +469,6 @@ const BUILDERS = {
     );
   },
 
-  final_draft() {
-    const chooser = byId(state.final.players[state.final.draftTurn]);
-    scene.append(
-      finalScore(),
-      el('h1', { class: 'headline small' }, `${chooser.nick} wählt die Kategorie`),
-      el('div', { class: 'draftcards' }, ...state.final.draftOptions.map((cat, i) => {
-        const meta = CATEGORY_META[cat];
-        return el('div', { class: 'draftcard', style: { animationDelay: `${i * 90}ms` }, 'data-cat': cat },
-          el('span', { class: 'icon' }, meta.icon), meta.label);
-      })),
-    );
-  },
 
   final_question() { buildQuestion(true); },
   final_reveal() { buildQuestion(true); },
@@ -544,14 +534,6 @@ const UPDATERS = {
       if (node) node.textContent = byId(pid)?.guessed ? '✓ getippt' : '…';
     }
   },
-  final_draft() {
-    if (!state.final.chosenCategory) return;
-    const card = scene.querySelector(`.draftcard[data-cat="${state.final.chosenCategory}"]`);
-    if (card && !card.classList.contains('chosen')) {
-      card.classList.add('chosen');
-      audio.play('lock');
-    }
-  },
 };
 
 // ------------------------------------------------------------------ Bausteine
@@ -582,10 +564,13 @@ function settingsCard() {
 function syncSettings(card = $('#settingsCard')) {
   if (!card || !state) return;
   const s = state.settings;
-  const paceLabel = { blitz: 'Blitz · 5 s', standard: 'Standard · 10 s', gemuetlich: 'Gemütlich · 15 s' }[s.pace];
+
   card.replaceChildren(
     el('h3', {}, 'Einstellungen'),
-    el('div', { class: 'settings-row' }, el('span', { class: 'label' }, 'Tempo'), el('span', { class: 'chip on' }, paceLabel)),
+    el('div', { class: 'settings-row' }, el('span', { class: 'label' }, 'Zeit'),
+      el('span', { class: 'chip on' }, `${s.answerSeconds} s pro Frage`)),
+    el('div', { class: 'settings-row' }, el('span', { class: 'label' }, 'Runde'),
+      el('span', { class: 'chip on' }, `${s.questionsPerRound} Fragen bis zum Voting`)),
     el('div', { class: 'settings-row' }, el('span', { class: 'label' }, 'Kategorien'),
       ...Object.entries(CATEGORY_META).map(([key, meta]) =>
         el('span', { class: `chip${s.categories.includes(key) ? ' on' : ''}` }, `${meta.icon} ${meta.label}`))),

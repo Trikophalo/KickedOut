@@ -20,7 +20,6 @@ export const PHASES = {
   TIEBREAK_REVEAL: 'tiebreak_reveal',
   ELIMINATION: 'elimination',
   FINAL_INTRO: 'final_intro',
-  FINAL_DRAFT: 'final_draft',
   FINAL_QUESTION: 'final_question',
   FINAL_REVEAL: 'final_reveal',
   RESULTS: 'results',
@@ -29,7 +28,7 @@ export const PHASES = {
 const ANSWER_PHASES = new Set([PHASES.QUESTION, PHASES.FINAL_QUESTION]);
 
 const DEFAULT_SETTINGS = {
-  pace: 'standard',
+  answerSeconds: CONFIG.answerTime.default,
   questionsPerRound: CONFIG.questionsPerRound,
   categories: ['allgemeinwissen', 'wissenschaft', 'geografie'],
   anonymousVoting: true,
@@ -63,6 +62,7 @@ export class Room {
     this.autoStartAt = null;
     this.autoStartTimer = null;
     this.pending = null;
+    this.pendingFinal = false;
     this.roundRecap = [];
     this.timer = null;
 
@@ -200,7 +200,6 @@ export class Room {
       case 'answer':      return this.onAnswer(player, msg);
       case 'vote':        return this.onVote(player, msg);
       case 'guess':       return this.onGuess(player, msg);
-      case 'draft':       return this.onDraft(player, msg);
       case 'predict':     return this.onPredict(player, msg);
       case 'chat':        return this.onChat(player, msg);
       case 'emoji':       return this.onEmoji(player, msg);
@@ -261,7 +260,10 @@ export class Room {
   }
 
   applySettings(patch) {
-    if (CONFIG.pace[patch.pace]) this.settings.pace = patch.pace;
+    if (Number.isFinite(patch.answerSeconds)) {
+      const { min, max } = CONFIG.answerTime;
+      this.settings.answerSeconds = clamp(Math.round(patch.answerSeconds), min, max);
+    }
     if (Number.isFinite(patch.questionsPerRound)) {
       const { min, max } = CONFIG.questionsPerRoundRange;
       this.settings.questionsPerRound = clamp(Math.round(patch.questionsPerRound), min, max);
@@ -338,14 +340,6 @@ export class Room {
     if (this.tiebreak.participants.every((pid) => this.players.get(pid)?.guess != null)) {
       this.setPhaseTimer(1200);
     }
-  }
-
-  onDraft(player, msg) {
-    if (this.phase !== PHASES.FINAL_DRAFT || !player || !this.final) return;
-    if (this.final.players[this.final.draftTurn] !== player.id) return;
-    if (!this.final.draftOptions.includes(msg.category)) return;
-    this.final.chosenCategory = msg.category;
-    this.setPhaseTimer(600);
   }
 
   onPredict(player, msg) {
@@ -476,7 +470,7 @@ export class Room {
       // Bei zwei Spielern gibt es nichts zu eliminieren — es geht sofort ums Duell.
       case PHASES.INTRO:            return this.plan.length ? this.startRound() : this.startFinale();
       case PHASES.ROUND_INTRO:      return this.askQuestion();
-      case PHASES.CATEGORY:         return this.openQuestion();
+      case PHASES.CATEGORY:         return this.pendingFinal ? this.openFinalQuestion() : this.openQuestion();
       case PHASES.QUESTION:         return this.revealAnswer();
       case PHASES.REVEAL:           return this.afterReveal();
       case PHASES.ROUND_END:        return this.openVoting();
@@ -487,8 +481,7 @@ export class Room {
         ? this.showResults(this.players.get(this.tiebreak.winner))
         : this.doElimination(this.tiebreak.eliminate);
       case PHASES.ELIMINATION:      return this.afterElimination();
-      case PHASES.FINAL_INTRO:      return this.openDraft();
-      case PHASES.FINAL_DRAFT:      return this.askFinalQuestion();
+      case PHASES.FINAL_INTRO:      return this.drawFinalCategory();
       case PHASES.FINAL_QUESTION:   return this.revealFinalAnswer();
       case PHASES.FINAL_REVEAL:     return this.afterFinalReveal();
       default:                      return undefined;
@@ -589,7 +582,7 @@ export class Room {
     this.current = this.pending;
     this.pending = null;
     this.questionStartedAt = now();
-    this.enter(PHASES.QUESTION, answerTimeMs(this.round, this.settings.pace));
+    this.enter(PHASES.QUESTION, answerTimeMs(this.settings));
     this.fx('questionIn', { index: this.questionIndex, category: this.current.cat });
   }
 
@@ -945,8 +938,6 @@ export class Room {
       players: finalists.map((p) => p.id),
       scores: { [finalists[0].id]: 0, [finalists[1].id]: 0 },
       questionNo: 0,
-      draftTurn: 0,
-      draftOptions: [],
       chosenCategory: null,
       lastPoint: null,
       suddenDeath: null,
@@ -958,43 +949,43 @@ export class Room {
     this.fx('finalIntro');
   }
 
-  openDraft() {
+  /**
+   * Auch im Finale zieht der Zufall das Fach — niemand muss wählen. Die
+   * Walze läuft, dann steht die Frage.
+   */
+  drawFinalCategory() {
     this.current = null;
     this.reveal = null;
     this.final.questionNo++;
-    this.final.chosenCategory = null;
+    // Frage 5 ist die „Chaos“-Frage: gleiches Ziehen, härteste Stufe.
+    this.final.chaos = this.final.questionNo === 5;
+    this.final.chosenCategory = pick(this.settings.categories);
 
-    // Frage 5 ist immer „Chaos“: Zufallskategorie, hohe Schwierigkeit.
-    if (this.final.questionNo === 5) {
-      this.final.draftOptions = [];
-      this.final.chosenCategory = pick(this.settings.categories);
-      this.final.chaos = true;
-      return this.askFinalQuestion();
-    }
-    this.final.chaos = false;
-    this.final.draftOptions = this.batch.draftOptions();
-    this.final.draftTurn = (this.final.questionNo - 1) % 2;
-    this.enter(PHASES.FINAL_DRAFT, scaled(CONFIG.timing.finalDraft));
-    this.fx('finalDraft');
-  }
-
-  askFinalQuestion() {
-    const category = this.final.chosenCategory || pick(this.settings.categories);
-    const diff = this.final.chaos ? 'schwer' : (this.final.questionNo >= 4 ? 'schwer' : 'mittel');
-    const q = this.batch.take({ cat: category, diff }) || this.batch.take({});
+    const diff = this.final.chaos || this.final.questionNo >= 4 ? 'schwer' : 'mittel';
+    const q = this.batch.take({ cat: this.final.chosenCategory, diff }) || this.batch.take({});
     if (!q) return this.finishFinale();
 
-    for (const pid of this.final.players) this.players.get(pid).answer = null;
+    this.final.chosenCategory = q.cat;
     // Das Finale zahlt auf der höchsten Stufe ein. Zu zweit ist es die einzige
     // Quelle für den Pott — vorher blieb der dann bei null stehen.
-    this.current = {
+    this.pending = {
       ...q,
       plannedDiff: calibrated(q),
       value: roundSpec(CONFIG.maxRounds).value[calibrated(q)],
     };
+    this.pendingFinal = true;
+    this.enter(PHASES.CATEGORY, scaled(CONFIG.timing.category));
+    this.fx('categoryDraw', { cat: q.cat, final: true });
+  }
+
+  openFinalQuestion() {
+    for (const pid of this.final.players) this.players.get(pid).answer = null;
+    this.current = this.pending;
+    this.pending = null;
+    this.pendingFinal = false;
     this.questionStartedAt = now();
     this.enter(PHASES.FINAL_QUESTION, scaled(CONFIG.timing.finalQuestion));
-    this.fx('questionIn', { final: true, category });
+    this.fx('questionIn', { final: true, category: this.current.cat });
   }
 
   revealFinalAnswer() {
@@ -1078,7 +1069,7 @@ export class Room {
       this.fx('matchPoint');
       this.moments.push({ kind: 'matchPoint', title: 'Matchball', detail: `${this.players.get(leader).nick} vor dem Sieg` });
     }
-    return this.openDraft();
+    return this.drawFinalCategory();
   }
 
   /** Sudden Death, wenn nach dem regulären Duell kein Sieger feststeht. */
@@ -1143,6 +1134,7 @@ export class Room {
     this.autoStartAt = null;
     this.autoStartTimer = null;
     this.pending = null;
+    this.pendingFinal = false;
     this.roundRecap = [];
     this.round = 0;
     this.pot = 0;
@@ -1210,6 +1202,7 @@ export class Room {
       roundAnswered: player.roundAnswered,
       chainBreaks: player.chainBreaks,
       contributed: player.contributed,
+      votesReceived: player.votesReceived,
       finalScore: player.finalScore,
       predictionsCorrect: player.predictionsCorrect,
       isYou: viewer ? player.id === viewer.id : false,
@@ -1254,6 +1247,10 @@ export class Room {
         cat: this.pending.cat,
         index: this.questionIndex,
         total: this.roundQuestions.length,
+        // Im Finale zählt die Fragennummer, nicht der Rundenplan.
+        final: this.pendingFinal,
+        no: this.pendingFinal ? this.final.questionNo : null,
+        chaos: this.pendingFinal ? this.final.chaos : false,
         pool: this.settings.categories,
       } : null,
       recap: this.phase === PHASES.ROUND_END ? this.roundRecap : null,
@@ -1286,8 +1283,6 @@ export class Room {
         players: this.final.players,
         scores: this.final.scores,
         questionNo: this.final.questionNo,
-        draftTurn: this.final.draftTurn,
-        draftOptions: this.final.draftOptions,
         chosenCategory: this.final.chosenCategory,
         chaos: this.final.chaos,
         winScore: CONFIG.finale.winScore,

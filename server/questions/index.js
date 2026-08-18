@@ -86,12 +86,6 @@ class Batch {
     }
     return out;
   }
-
-  /** Drei Kategorie-Karten für den Finale-Draft. */
-  draftOptions(n = CONFIG.finale.draftOptions) {
-    const available = this.categories.filter((c) => this.pool.some((q) => q.cat === c));
-    return shuffle(available.length >= n ? available : this.categories).slice(0, n);
-  }
 }
 
 export class QuestionService {
@@ -208,7 +202,7 @@ export class QuestionService {
 
   /**
    * Reserviert den Fragenvorrat für ein Spiel — großzügig bemessen (Faktor 3),
-   * damit Kategorien-Constraints und der Finale-Draft Spielraum haben.
+   * damit die Kategorien-Vorgaben und das Finale Spielraum haben.
    */
   createBatch({ groupId, categories, rounds }) {
     const active = categories.filter((c) => CATEGORIES[c]);

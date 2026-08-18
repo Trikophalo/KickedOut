@@ -10,7 +10,8 @@ import { Net, session } from './net.js';
 import { audio, buzz, BUZZ } from './audio.js';
 import { fx } from './fx.js';
 import { $, el, avatarEl, applyAccent, toast, CATEGORY_META, formatMs, press, Countdown, spinCategory } from './ui.js';
-import { openSettings, closeSettings, settingsOpen, loadPrefs } from './settings.js';
+import { openSettings, closeSettings, settingsOpen, loadPrefs, gameSettingGroups } from './settings.js';
+import { openProfile, loadProfile, saveProfile } from './profile.js';
 
 const net = new Net();
 const main = $('#main');
@@ -28,6 +29,8 @@ let lastPot = 0;
 let answerTimer = null;
 let lobbyTick = null;
 let lastAutoLeft = null;
+let savedNick = '';
+let pendingNick = '';
 
 // Genres stellt man schon beim Erstellen ein — der Rest wandert später in
 // die Spieleinstellungen der Lobby.
@@ -45,11 +48,13 @@ const EMOJIS = ['😂', '😱', '🔥', '💀', '👏', '🤡', '❤️'];
   } catch {
     config = { avatars: { faces: ['🦊', '🐸', '🐙'], colors: ['#5AA7FF'], hats: [null] }, minPlayers: 2, maxPlayers: 9 };
   }
-  draft = {
+  const remembered = loadProfile();
+  draft = remembered?.avatar ? { ...remembered.avatar } : {
     face: pickOne(config.avatars.faces),
     color: pickOne(config.avatars.colors),
     hat: null,
   };
+  savedNick = remembered?.nick || '';
 
   const saved = session.load();
   if (saved?.token && saved.code === roomCode && intent !== 'create') {
@@ -66,6 +71,9 @@ const pickOne = (list) => list[Math.floor(Math.random() * list.length)];
 
 net.on('joined', ({ code, playerId, token, resumed, created }) => {
   document.body.classList.remove('joining');
+  // Wer einmal gespielt hat, soll beim nächsten Mal nicht wieder von vorn
+  // anfangen. Vergessen geht jederzeit über das eigene Profil.
+  if (!resumed) saveProfile({ nick: pendingNick || savedNick, avatar: draft });
   session.save({ code, playerId, token });
   roomCode = code;
   history.replaceState(null, '', `/join/${code}`);
@@ -143,7 +151,10 @@ function renderJoin() {
 
   const creating = intent === 'create';
   const preview = el('div', { class: 'preview' });
-  const nick = el('input', { class: 'field', maxlength: '12', placeholder: 'Dein Name', 'aria-label': 'Name' });
+  const nick = el('input', {
+    class: 'field', maxlength: '12', placeholder: 'Dein Name', 'aria-label': 'Name',
+    value: savedNick,
+  });
   const codeField = el('input', {
     class: 'field codefield', maxlength: '4', placeholder: 'CODE', 'aria-label': 'Raum-Code',
     value: roomCode, autocomplete: 'off',
@@ -223,12 +234,14 @@ function renderJoin() {
     if (nick.value.trim().length < 2) return toast('Der Name braucht mindestens zwei Zeichen.', 'error');
 
     if (creating) {
-      net.connect({ t: 'createRoom', nick: nick.value.trim(), avatar: draft, settings: { categories: setup.categories } });
+      pendingNick = nick.value.trim();
+      net.connect({ t: 'createRoom', nick: pendingNick, avatar: draft, settings: { categories: setup.categories } });
     } else {
       const code = (roomCode || codeField.value).toUpperCase().replace(/[^A-Z]/g, '');
       if (code.length !== 4) return toast('Der Raum-Code hat vier Buchstaben.', 'error');
       roomCode = code;
-      net.connect({ t: 'join', code, nick: nick.value.trim(), avatar: draft });
+      pendingNick = nick.value.trim();
+      net.connect({ t: 'join', code, nick: pendingNick, avatar: draft });
     }
     renderConnecting();
   }
@@ -267,7 +280,6 @@ function screenFor(s) {
   if (s.phase === 'voting') return 'voting';
   if (s.phase === 'vote_reveal') return 'voteReveal';
   if (s.phase === 'tiebreak') return s.tiebreak?.participants.includes(me.id) ? 'guess' : 'wait';
-  if (s.phase === 'final_draft') return s.final?.players[s.final.draftTurn] === me.id ? 'draft' : 'wait';
   if (s.phase === 'final_question' || s.phase === 'final_reveal') return me.finalist ? 'question' : 'wait';
   return 'wait';
 }
@@ -286,20 +298,31 @@ const MUSIC_MOOD = {
   lobby: ['lobby', 1], intro: ['round', 1], round_intro: ['round', 1], category: ['round', 1], question: ['round', 1],
   reveal: ['round', 1], round_end: ['round', 1], voting: ['voting', 1], vote_reveal: ['voting', 1],
   tiebreak: ['voting', 2], tiebreak_reveal: ['voting', 2], elimination: ['voting', 1],
-  final_intro: ['final', 3], final_draft: ['final', 3], final_question: ['final', 4],
+  final_intro: ['final', 3], final_question: ['final', 4],
   final_reveal: ['final', 4], results: ['results', 2],
 };
 
 function updateTop() {
   if (!state.you) return;
-  const [mood, intensity] = MUSIC_MOOD[state.phase] || ['lobby', 1];
+  const [mood, intensity] = state.draw?.final ? ['final', 4] : (MUSIC_MOOD[state.phase] || ['lobby', 1]);
   audio.setMood(mood, state.round ? Math.min(4, intensity + state.round - 1) : intensity);
 
-  $('#meBox').replaceChildren(
+  const meBox = $('#meBox');
+  meBox.replaceChildren(
     avatarEl({ ...state.you, alive: state.you.alive, connected: true }, { size: 38 }),
     el('div', {},
       el('div', { class: 'nick' }, state.you.nick),
       el('div', { class: 'role' }, state.you.alive ? (state.you.isHost ? '👑 Gastgeber' : 'im Spiel') : '👻 Geist')));
+  if (!meBox.dataset.wired) {
+    meBox.dataset.wired = '1';
+    meBox.tabIndex = 0;
+    meBox.setAttribute('role', 'button');
+    meBox.dataset.tip = 'Dein Profil';
+    meBox.dataset.tipSide = 'right';
+    const open = () => showProfile();
+    meBox.addEventListener('click', open);
+    meBox.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
+  }
 
   const potNum = $('#potNum');
   if (state.pot !== lastPot) {
@@ -320,7 +343,7 @@ function updateTop() {
   round.hidden = state.phase === 'lobby';
   round.textContent = state.final ? '🏁 Finale' : state.round ? `Runde ${state.round}/${state.roundTotal}` : '…';
 
-  const showTimer = ['question', 'voting', 'tiebreak', 'final_question', 'final_draft'].includes(state.phase);
+  const showTimer = ['question', 'voting', 'tiebreak', 'final_question'].includes(state.phase);
   $('#timer').hidden = !showTimer;
   countdown.set(showTimer ? state.phaseEndsAt : null, () => net.now());
 }
@@ -430,12 +453,14 @@ const SCREENS = {
         : waiting.length
           ? `Warten auf ${waiting.length} ${waiting.length === 1 ? 'Person' : 'Leute'}`
           : 'Spiel starten 🎬'));
-      kids.push(el('button', {
-        class: 'btn ghost block', onclick: () => openSettings(buildSettings()),
-      }, '⚙️ Spieleinstellungen'));
     }
 
+    // Die Spielregeln stehen offen da — man soll sehen, worauf man sich
+    // einlässt, ohne erst ein Fenster aufzumachen.
+    kids.push(el('section', { class: 'lobbyrules', id: 'lobbyRules' }));
+
     main.replaceChildren(el('div', { class: 'grow' }, ...kids.filter(Boolean)));
+    syncLobbyRules();
     if (!lobbyTick) lobbyTick = setInterval(syncAutoStart, 250);
     syncAutoStart();
   },
@@ -446,7 +471,9 @@ const SCREENS = {
     const slot = el('div', { class: 'slot' });
     const caption = el('div', { class: 'status wait', id: 'drawStatus' }, 'Kategorie wird gezogen …');
     main.replaceChildren(el('div', { class: 'grow', style: { textAlign: 'center' } },
-      el('p', { class: 'lead' }, `Frage ${draw.index + 1} von ${draw.total}`),
+      el('p', { class: 'lead' }, draw.final
+        ? (draw.chaos ? '🎲 Chaos-Frage' : `Finalfrage ${draw.no}`)
+        : `Frage ${draw.index + 1} von ${draw.total}`),
       el('div', { class: 'drawbox' }, slot),
       caption));
     spinCategory(slot, draw, {
@@ -599,18 +626,6 @@ const SCREENS = {
     setTimeout(() => input.focus(), 150);
   },
 
-  draft() {
-    main.replaceChildren(el('div', { class: 'grow' },
-      el('h1', { class: 'display', style: { fontSize: '1.3rem', textAlign: 'center' } }, 'Du wählst die Kategorie'),
-      el('div', { class: 'cands' }, ...state.final.draftOptions.map((cat) => {
-        const meta = CATEGORY_META[cat];
-        return el('button', {
-          class: 'cand', type: 'button',
-          onclick: (e) => { press(e.currentTarget); audio.play('lock'); buzz(BUZZ.lock); net.send({ t: 'draft', category: cat }); },
-        }, el('span', { style: { fontSize: '1.6rem' } }, meta.icon), el('span', {}, meta.label));
-      }))));
-  },
-
   ghost() {
     const me = state.you;
     const voting = state.phase === 'voting';
@@ -688,10 +703,38 @@ const WAIT_TEXT = {
   tiebreak_reveal: 'Auflösung',
   elimination: 'Gleich fällt es',
   final_intro: 'Das Finale beginnt',
-  final_draft: 'Kategorie wird gewählt',
   final_question: 'Die zwei duellieren sich',
   final_reveal: 'Auflösung',
 };
+
+/**
+ * Baut die Regel-Anzeige der Lobby — aber nur, wenn sich wirklich etwas
+ * geändert hat. Sonst zöge jeder „Bereit“-Klick eines Mitspielers dem
+ * Gastgeber den Schieber unter dem Finger weg.
+ */
+function syncLobbyRules() {
+  const host = $('#lobbyRules');
+  if (!host || !state?.you) return;
+  const mine = state.you.isHost;
+  const sig = JSON.stringify(state.settings) + (mine ? ':host' : ':gast');
+  if (host.dataset.sig === sig) return;
+  if (host.contains(document.activeElement) && document.activeElement?.type === 'range') return;
+  host.dataset.sig = sig;
+
+  const head = el('h2', { class: 'display' }, '⚙️ Spielregeln');
+  if (mine) {
+    host.replaceChildren(head, ...gameSettingGroups(buildSettings()));
+    return;
+  }
+  const rules = state.settings;
+  host.replaceChildren(head,
+    el('p', { class: 'sheet-hint' }, 'Der Gastgeber stellt ein, was gespielt wird.'),
+    el('div', { class: 'chips' },
+      el('span', { class: 'chip' }, `⏱ ${rules.answerSeconds} s pro Frage`),
+      el('span', { class: 'chip' }, `${rules.questionsPerRound} Fragen je Runde`),
+      ...rules.categories.map((c) => el('span', { class: 'chip' },
+        `${CATEGORY_META[c]?.icon || ''} ${CATEGORY_META[c]?.label || c}`))));
+}
 
 /** Hält den Lobby-Countdown auf dem Laufenden, ohne die Szene neu zu bauen. */
 function syncAutoStart() {
@@ -786,7 +829,6 @@ const UPDATE = {
   ghost() {},
   wait() { const p = main.querySelector('p'); if (p) p.textContent = waitDetail(); },
   results() {},
-  draft() {},
 };
 
 const byId = (pid) => state?.players.find((p) => p.id === pid);
@@ -922,6 +964,17 @@ async function copyInvite() {
 }
 
 /** Was im Einstellungs-Fenster steht — Spielregler nur für den Gastgeber. */
+function showProfile() {
+  if (!state?.you) return;
+  audio.play('tap');
+  const me = state.players.find((p) => p.isYou);
+  openProfile({
+    player: { ...state.you, avatar: state.you.avatar },
+    stats: me ? { correct: me.correct, answeredCount: me.answeredCount, contributed: me.contributed, votesReceived: me.votesReceived } : null,
+    onChange: () => { /* Anzeige im Fenster aktualisiert sich selbst */ },
+  });
+}
+
 function buildSettings() {
   const canConfigure = state?.you?.isHost && state.phase === 'lobby';
   return {
@@ -929,7 +982,7 @@ function buildSettings() {
     code: state?.code || roomCode,
     settings: state?.settings,
     categories: CATEGORY_META,
-    pace: config?.pace,
+    answerTime: config?.answerTime,
     canConfigure,
     onLeave: () => { session.clear(); location.href = '/'; },
     onCopy: copyInvite,

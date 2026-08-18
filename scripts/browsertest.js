@@ -159,6 +159,20 @@ async function main() {
   await phones[0].keyboard.press('Escape');
   await sleep(250);
 
+  // Die Spielregeln stehen in der Lobby offen — ohne Fenster, mit Schieber.
+  const rules = await phones[0].$$('#lobbyRules input[type="range"]').catch(() => []);
+  if (!rules.length) problems.push('Die Spielregeln stehen in der Lobby nicht offen');
+
+  // Das eigene Profil hängt am Bild oben links.
+  await phones[0].click('#meBox');
+  await sleep(450);
+  await shot(phones[0], '21-pc-profil');
+  if (!await phones[0].$('.profile-head').catch(() => null)) {
+    problems.push('Über das eigene Bild geht kein Profil-Fenster auf');
+  }
+  await phones[0].keyboard.press('Escape');
+  await sleep(250);
+
   for (const page of phones) await page.click('#readyBtn');
   // Sind alle bereit, startet die Lobby nach zehn Sekunden von selbst. Der
   // Gastgeber-Klick nimmt das nur vorweg — kommt der Selbststart zuerst,
@@ -322,13 +336,6 @@ async function main() {
       sawFinale = true;
     }
 
-    if (phase === 'final_draft') {
-      for (const page of phones) {
-        const cards = await page.$$('.cand').catch(() => []);
-        if (cards.length) await cards[0].click().catch(() => {});
-      }
-    }
-
     if (phase === 'results') {
       await sleep(1800);
       await shot(stage, '12-buehne-ergebnis');
@@ -340,7 +347,7 @@ async function main() {
   }
 
   for (const name of ['04-buehne-frage', '07-buehne-voting', '10-buehne-rausschmiss', '11-buehne-finale',
-    '12-buehne-ergebnis', '16-buehne-kategorie', '18-buehne-bilanz']) {
+    '12-buehne-ergebnis', '16-buehne-kategorie', '18-buehne-bilanz', '21-pc-profil']) {
     if (!shots.some((p) => p.includes(name))) problems.push(`Schlüsselmoment nie fotografiert: ${name}`);
   }
   if (lost) problems.push(`Der Test verlor seine Fenster nach ${since().trim()}: ${lost}`);

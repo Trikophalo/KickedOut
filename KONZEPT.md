@@ -73,7 +73,7 @@ flowchart LR
     D --> E[Auszählung &\nRausschmiss]
     E -->|noch > 2 Spieler| F[Runden-Bumper:\nWerte steigen]
     F --> K
-    E -->|genau 2 Spieler| G[FINALE\nBlitz-Duell Best-of-5]
+    E -->|genau 2 Spieler| G[FINALE\nBlitz-Duell Best-of-5\nKategorie ebenfalls gezogen]
     G --> H[Ergebnis, Awards\n& Recap]
     H -->|Revanche| A
 ```
@@ -87,8 +87,8 @@ Der Server führt diese Phasen als strikte State Machine; jede Phase hat einen s
 - **Host** öffnet `kickedout.app` → „Lobby erstellen" → bekommt **Raum-Code (4 Buchstaben)**, Teilen-Link und QR-Code auf dem großen Screen.
 - **Mitspieler** öffnen den Link oder tippen den Code ein (kein Download, kein Login): Nickname (max. 12 Zeichen, Schimpfwortfilter) + **Avatar-Baukasten** (Form × Farbe × Accessoire, in 10 Sekunden fertig, garantiert unterscheidbar). Am PC steht der Baukasten vollständig im Bild — kein Scrollen, kein Wischen durch die Figurenreihen.
 - **Wer erstellt, wählt gleich die Fragen-Genres** — die Kategorien-Auswahl steckt schon im Formular, nicht erst in den Einstellungen.
-- **Host-Einstellungen** (auf dem Handy des Hosts, Vorschau auf dem großen Screen):
-  - Rundenlänge: Blitz (5 s/Frage) · **Standard (10 s)** · Gemütlich (15 s)
+- **Host-Einstellungen** stehen offen in der Lobby — kein Fenster, das man erst öffnen muss (Vorschau auf dem großen Screen):
+  - Antwortzeit je Frage: frei einstellbar von **10 Sekunden bis zu einer Minute** (Standard 25 s)
   - Kategorien-Mix: Allgemeinwissen / Wissenschaft / Geografie einzeln zuschaltbar (Standard: alle drei)
   - **Fragen pro Runde: 2 bis 8** (Standard 5) — so viele Fragen laufen durch, bevor abgestimmt und rausgeworfen wird
   - Voting: **Anonym (Standard)** oder Klartext-Modus (Votes öffentlich — für hartgesottene Gruppen)
@@ -101,7 +101,7 @@ Der Server führt diese Phasen als strikte State Machine; jede Phase hat einen s
 **Ablauf pro Runde:** Kategorien-Roulette (2 s Animation) → 7 Fragen im Schnellfeuer-Gefühl. Jede Frage:
 
 1. Frage + 4 Antwortkarten erscheinen auf dem großen Screen; die Handys zeigen dieselben 4 Antworten als große Buttons.
-2. **Alle antworten simultan.** Timer läuft (Standard 10 s). Sobald **alle** eingeloggt haben, geht es sofort weiter — das erzeugt das Schnellfeuer-Tempo, ohne dass Runden unplanbar lang werden.
+2. **Alle antworten simultan.** Timer läuft (Standard 25 s, in der Lobby von 10 s bis 1 min einstellbar). Sobald **alle** eingeloggt haben, geht es sofort weiter — das erzeugt das Schnellfeuer-Tempo, ohne dass Runden unplanbar lang werden.
 3. **Reveal (4 s):** richtige Antwort leuchtet auf, Avatare aller Spieler springen auf die Option, die sie gewählt haben (Kahoot-artige Verteilung — man sieht sofort, *wer* „Sydney" für Australiens Hauptstadt hielt). Pott tickt hoch, Kette reagiert.
 4. Nicht beantwortet (Timeout/Disconnect) zählt als falsch.
 
@@ -173,7 +173,7 @@ Der Server führt diese Phasen als strikte State Machine; jede Phase hat einen s
 ### 1.8 Finale (letzte 2)
 
 1. **Versus-Splash:** Beide Avatare krachen von den Seiten ins Bild, Blitz-Effekt, Kampfansage des Moderators. Der Pott hängt sichtbar über der Bühne.
-2. **Kategorien-Draft:** Abwechselnd wählt jeder Finalist aus je 3 angebotenen Kategorien-Karten (Frage 1 wählt A, Frage 2 wählt B, …). Frage 5 ist immer **„Chaos"** (Zufallskategorie, schwer).
+2. **Kategorie-Zug:** Auch im Duell zieht der Zufall das Fach — dieselbe Walze wie in den Runden. Niemand wählt, niemand kann taktieren. Frage 5 ist die **„Chaos"-Frage** (härteste Stufe).
 3. **Blitz-Duell, Best-of-5:** Beide antworten simultan. Beide richtig → **der Schnellere** holt den Punkt. Einer richtig → Punkt. Beide falsch → kein Punkt. Erster mit 3 Punkten gewinnt; Punktestand als Tauziehen-Kette zwischen den Avataren.
 4. **Matchball-Inszenierung:** Hintergrund färbt sich dunkelrot, Herzschlag-Sound, Timer pulsiert.
 5. Bei 0:0-Blockade nach 5 Fragen: Sudden-Death-Schätzfrage (wie Blitz-Stechen).
@@ -236,7 +236,7 @@ Jede Spielphase hat eine **Leitfarbe** (Fragerunde = Info-Blau/Creme, Voting = L
 | **Antwort-Reveal** | Richtige Karte pulsiert mint & wächst, falsche sacken grau ab; Avatare springen auf ihre gewählte Antwort (Verteilungsbild); Pott-Zähler rattert hoch, Kettenglied schmiedet sich (Funken) **oder** Frost + Splittern beim Bruch. |
 | **Voting** | „Wer fliegt raus?" in Display-Type; Spielerkarten im Halbkreis mit grober Rundenbilanz; Fortschritt „5/7 haben abgestimmt"; Hintergrund kippt ins Lila, Musik wird sparsamer. |
 | **Reveal/Rausschmiss** | Beat-Choreografie aus §1.5: fliegende Vote-Karten, anonyme Begründungs-Sprechblasen, Moderator-Band unten, Spotlight, Katapult. Der dramaturgische Höhepunkt — hier sitzt das Animations-Budget. |
-| **Finale** | Splitscreen mit beiden Großporträts, Tauziehen-Kette als Score, Kategorien-Draft als Kartenfächer, Geister-Wettbalken am Rand. |
+| **Finale** | Splitscreen mit beiden Großporträts, Tauziehen-Kette als Score, Kategorie-Walze vor jeder Frage, Geister-Wettbalken am Rand. |
 | **Ergebnis** | Podest + Krone + Konfetti; Awards-Karussell; Recap-Slideshow; QR „Recap-Karte aufs Handy"; großer „Revanche"-Button. |
 
 **Praktisch:** Der Host-Screen ist nur eine URL — für Remote-Runden teilt man ihn per Screenshare, oder jeder öffnet zusätzlich den read-only **Beobachter-Link**.
@@ -253,7 +253,7 @@ Grundregeln: alles Wichtige in der **unteren Daumenzone**, Touch-Targets ≥ 56 
 | **Voting** | Kandidatenliste mit Avataren, Antippen = Auswahl mit Wackel-Animation; Begründung: Chip-Reihe + Freitextfeld; Absenden-Button füllt sich erst, wenn beides gesetzt ist; danach „Stimme ist im Umschlag ✉️" + Warteanimation. |
 | **Rausschmiss (persönlich)** | Überlebende: kurzes „Du bleibst." Der Getroffene: Bildschirm kippt, „DU FLIEGST!", starke Vibration — und sofort das freundliche Onboarding in den Geister-Modus („Deine neuen Superkräfte: Chat, Emoji-Regen, Prophezeiungen"). |
 | **Geister-Modus** | Chat im Fokus, Emoji-Regen-Buttons (rate-limited mit Cooldown-Ring), Geister-Tipp vor jedem Voting, Finale-Wette. |
-| **Finale (die 2)** | Wie Fragerunde, plus Kategorien-Draft (3 Karten zum Antippen), Matchball-Warnfarbe. |
+| **Finale (die 2)** | Wie Fragerunde, plus Kategorie-Walze vor jeder Frage, Matchball-Warnfarbe. |
 | **Ergebnis** | Persönliche Statistik-Karte (Quote, Speed, Awards), „Recap-Karte teilen", „Revanche". |
 
 ### 2.4 Live-Chat & Reaktionen — mit Spoiler-Schleuse

@@ -87,7 +87,7 @@ const server = createServer((req, res) => {
   if (req.url === '/api/config') {
     const body = JSON.stringify({
       categories: CATEGORIES,
-      pace: CONFIG.pace,
+      answerTime: CONFIG.answerTime,
       avatars: AVATAR_PARTS,
       minPlayers: CONFIG.minPlayers,
       maxPlayers: CONFIG.maxPlayers,

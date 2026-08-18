@@ -269,17 +269,6 @@ body[data-phase="results"] .headline { font-size: clamp(1.5rem, 3.4vw, 2.6rem); 
 .tug .knot.a { background: var(--sky); border-color: #fff; }
 .tug .knot.b { background: var(--coral); border-color: #fff; }
 
-.draftcards { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
-.draftcard {
-  background: var(--card); color: var(--ink); border-radius: var(--r);
-  padding: 1rem 1.6rem; font-family: var(--font-display); font-weight: 800;
-  font-size: clamp(1rem, 2vw, 1.5rem); box-shadow: var(--shadow-card);
-  display: flex; flex-direction: column; align-items: center; gap: 0.3rem;
-  animation: riseIn 360ms cubic-bezier(.2,1.4,.4,1) backwards;
-}
-.draftcard .icon { font-size: 1.8em; }
-.draftcard.chosen { outline: 5px solid var(--gold); animation: pop 420ms cubic-bezier(.2,1.8,.4,1); }
-
 /* ---------------------------------------------------------- Stechen */
 
 .guessrow { display: flex; gap: clamp(1rem, 3vw, 2.5rem); justify-content: center; flex-wrap: wrap; }

@@ -99,6 +99,7 @@ class Client {
     if (s.phase === 'category') {
       if (s.question) this.leak = 'Frage schon beim Kategorie-Zug ausgeliefert';
       if (!s.draw?.cat) this.leak = 'Kategorie-Zug ohne Kategorie';
+      if (s.draw?.final) this.sawFinalDraw = true;
     }
     // Am Rundenende steht die Sammlung der Fehlgriffe mit Namen bereit.
     if (s.phase === 'round_end' && Array.isArray(s.recap)) {
@@ -152,9 +153,6 @@ class Client {
       return;
     }
 
-    if (s.phase === 'final_draft' && s.final.players[s.final.draftTurn] === me.id && !s.final.chosenCategory) {
-      this.send({ t: 'draft', category: s.final.draftOptions[0] });
-    }
   }
 
   close() { this.ws?.close(); }
@@ -237,6 +235,16 @@ async function main() {
       `Phase ${stage.state.phase}`);
     check('Ohne „alle bereit“ läuft auch kein Countdown', !stage.state.autoStartAt);
 
+    host.send({ t: 'settings', settings: { answerSeconds: 40 } });
+    await waitFor(() => stage.state?.settings.answerSeconds === 40, 3000, 'Antwortzeit');
+    check('Die Antwortzeit lässt sich frei einstellen', stage.state.settings.answerSeconds === 40);
+    host.send({ t: 'settings', settings: { answerSeconds: 999 } });
+    await waitFor(() => stage.state?.settings.answerSeconds !== 40, 3000, 'Antwortzeit-Grenze');
+    check('Zu große Werte werden auf eine Minute gestutzt',
+      stage.state.settings.answerSeconds === 60, `${stage.state.settings.answerSeconds}`);
+    host.send({ t: 'settings', settings: { answerSeconds: 12 } });
+    await waitFor(() => stage.state?.settings.answerSeconds === 12, 3000, 'Antwortzeit zurück');
+
     host.autoReady = true;
     host.send({ t: 'ready' });
     await waitFor(() => players.every((p) => p.state?.you?.ready), 4000, 'Bereit-Status');
@@ -291,7 +299,7 @@ async function main() {
     const expected = PLAYERS > 2
       ? ['intro', 'round_intro', 'category', 'question', 'reveal', 'round_end', 'voting',
         'vote_reveal', 'elimination', 'final_intro', 'final_question', 'final_reveal', 'results']
-      : ['intro', 'final_intro', 'final_question', 'final_reveal', 'results'];
+      : ['intro', 'final_intro', 'category', 'final_question', 'final_reveal', 'results'];
     for (const phase of expected) {
       check(`Phase „${phase}“ wurde durchlaufen`, phases.has(phase));
     }
@@ -302,6 +310,8 @@ async function main() {
 
     const leaks = [stage, ...players].filter((c) => c.leak).map((c) => `${c.name}: ${c.leak}`);
     check('Weder Lösung noch fremde Eingaben vor der Auflösung ausgeliefert', leaks.length === 0, leaks.join(' | '));
+    check('Auch im Finale zieht der Zufall die Kategorie', stage.sawFinalDraw === true);
+    check('Niemand musste im Finale eine Kategorie wählen', !stage.seen.has('final_draft'));
 
     if (PLAYERS > 2) check('Die Bühne hat den Rausschmiss-Effekt bekommen', stage.fx.includes('eliminate'));
     check('Die Bühne hat die Sieger-Fanfare bekommen', stage.fx.includes('victory'));

@@ -41,20 +41,22 @@ Sitzt ihr im selben Raum an einem Fernseher? Dann zusätzlich `http://localhost:
 | Phase | Was passiert |
 |---|---|
 | **Lobby erstellen** | Schon im Beitrittsbild wählt man die **Fragen-Genres**. Am PC steht alles gleichzeitig da: Name, Vorschau und sämtliche Figuren, ohne eine einzige Rollleiste. |
-| **Lobby** | Wer erstellt, bekommt einen Code zum Weitergeben. Alle bauen sich in zehn Sekunden eine Figur — Accessoire sitzt mittig auf dem Kopf. Der Gastgeber kann erst starten, wenn **alle bereit** sind; dann läuft der Start nach **10 Sekunden von selbst** an. Ein erneuter Klick auf „Bereit" hält ihn wieder an. |
-| **Kategorie-Zug** | Vor **jeder** Frage rattert eine Walze durch die freigeschalteten Genres und rastet hörbar auf einem ein. |
-| **Fragerunde** | Standardmäßig 5 Fragen (in der Lobby von 2 bis 8 einstellbar), **alle tippen gleichzeitig**. Die Bewertung verzeiht Tippfehler, Buchstabendreher, fehlende Umlaute und Artikel — aber keine falsche Antwort. Beim Reveal liegt alles offen: Man sieht sofort, wer „Käse" für die chemische Formel von Wasser hielt. |
+| **Lobby** | Wer erstellt, bekommt einen Code zum Weitergeben. Alle bauen sich in zehn Sekunden eine Figur — Accessoire sitzt mittig auf dem Kopf. Die **Spielregeln stehen offen in der Lobby**, kein Fenster nötig: Antwortzeit, Fragen pro Runde, Kategorien, Moderator-Härtegrad. Der Gastgeber kann erst starten, wenn **alle bereit** sind; dann läuft der Start nach **10 Sekunden von selbst** an. Ein erneuter Klick auf „Bereit" hält ihn wieder an. |
+| **Kategorie-Zug** | Vor **jeder** Frage rattert eine Walze durch die freigeschalteten Genres und rastet hörbar auf einem ein — auch im Finale. Niemand muss je eine Kategorie wählen. |
+| **Fragerunde** | Standardmäßig 5 Fragen (in der Lobby von 2 bis 8 einstellbar), **alle tippen gleichzeitig** — mit der eingestellten Antwortzeit von 10 Sekunden bis zu einer Minute. Die Bewertung verzeiht Tippfehler, Buchstabendreher, fehlende Umlaute und Artikel — aber keine falsche Antwort. Beim Reveal liegt alles offen: Man sieht sofort, wer „Käse" für die chemische Formel von Wasser hielt. |
 | **Kette & Pott** | Jede richtige Antwort zahlt `Wert × Multiplikator` in den gemeinsamen Pott. Beantworten **alle** eine Frage richtig, wird ein Kettenglied geschmiedet (bis ×5). **Eine einzige falsche Antwort friert die Kette ein** — Frost, Splittern, zurück auf ×1. Und alle sehen, wer schuld war. |
 | **Rundenbilanz** | Bevor gewählt wird, kommt **alles Falsche der Runde mit Namen** auf die Leinwand. Das ist der Lacher, aus dem die Stimmen entstehen. |
 | **Voting** | Pro Spieler landet **eine Antwort** auf dem Stimmzettel — bevorzugt eine falsche. Man wählt die dümmste; die eigene ist gesperrt. Auf dem Zettel stehen keine Namen, die fallen erst bei der Auszählung. |
 | **Rausschmiss** | Man fliegt **einzig** über dieses Voting raus, nie über Punkte. Die Stimmen tropfen einzeln auf die Karten, dann fallen die Namen — und die meistgewählte Antwort kostet ihren Urheber den Platz. Spotlight, Stempel **„DU FLIEGST!"**, Katapult. |
 | **Geisterzone** | Rausgeflogene bleiben im Spiel: Chat, Emoji-Regen auf die Bühne und Prophezeiungen, wer als Nächstes fliegt. |
-| **Finale** | Die letzten zwei duellieren sich Best-of-5. Kategorien-Draft, beide richtig → der Schnellere punktet. Frage 5 ist immer „Chaos". **Zu zweit** geht es sofort hierhin — ohne Rausschmiss, direkt ins Duell. |
+| **Finale** | Die letzten zwei duellieren sich Best-of-5. Auch hier wird die Kategorie gezogen, nicht gewählt; beide richtig → der Schnellere punktet. Frage 5 ist immer „Chaos". **Zu zweit** geht es sofort hierhin — ohne Rausschmiss, direkt ins Duell. |
 | **Ergebnis** | Krönung mit Konfetti (die Menge skaliert mit dem Pott), Awards, Highlight-Recap, Revanche-Knopf. |
 
 Bei 8–9 Spielern fliegen in den ersten Runden zwei auf einmal — so bleibt der Abend bei 25–40 Minuten.
 
-**Einstellungen** öffnet das Zahnrad oder **Escape**: Musik und Effekte getrennt regelbar, alles stummschaltbar, Vollbild — und für den Gastgeber Tempo, Fragen pro Runde, Kategorien und Moderator-Härtegrad.
+**Einstellungen** öffnet das Zahnrad oder **Escape**: Musik und Effekte getrennt regelbar, alles stummschaltbar, Vollbild, Raum-Code und Einladungslink mittig — der Ausstieg steht abgesetzt ganz unten. Die Spielregeln stehen währenddessen ohnehin offen in der Lobby.
+
+**Dein Profil** öffnet ein Klick auf das eigene Bild oben links: Figur, Name, die eigenen Zahlen — und ein Schalter, der Name und Figur in diesem Browser merkt. Beim nächsten Abend steht beides schon im Formular. Kein Konto, kein Passwort, nichts verlässt das Gerät.
 
 Alles, was erklärungsbedürftig ist, erklärt sich beim Überfahren mit der Maus — der Hinweis erscheint **unter** dem Element, damit er nie verdeckt, worauf man gerade zeigt.
 
@@ -87,7 +89,7 @@ Alles, was erklärungsbedürftig ist, erklärt sich beim Überfahren mit der Mau
 | `/watch/CODE` | Bühne noch einmal öffnen — z. B. für einen zweiten Screen |
 | `/api/health` | Poolgesundheit, laufende Räume, Fragen-Statistik |
 
-Wer die **Lobby erstellt, ist der Gastgeber**: Er stellt Tempo, Fragen pro Runde, Kategorien und Moderator-Härtegrad im Einstellungs-Fenster ein, startet das Spiel und hat während einer Frage einen Notfallknopf („Frage ist kaputt"), der sie sofort austauscht und meldet.
+Wer die **Lobby erstellt, ist der Gastgeber**: Er stellt Antwortzeit, Fragen pro Runde, Kategorien und Moderator-Härtegrad direkt in der Lobby ein, startet das Spiel und hat während einer Frage einen Notfallknopf („Frage ist kaputt"), der sie sofort austauscht und meldet.
 
 ---
 
@@ -98,7 +100,7 @@ Ein Node-Server, eine Abhängigkeit (`ws`), kein Build-Schritt. Das Frontend sin
 ```
 server/
   index.js          HTTP + WebSocket, statische Auslieferung
-  room.js           Autoritative Zustandsmaschine (alle 17 Phasen)
+  room.js           Autoritative Zustandsmaschine (alle 16 Phasen)
   config.js         Werte-Rampe, Timings, Rausschmiss-Plan
   questions/        Pool, Qualitätsprüfung, Wikidata, OpenTDB, LLM-Stufen
     grade.js        Bewertung freier Texteingaben

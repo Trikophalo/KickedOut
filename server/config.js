@@ -21,19 +21,16 @@ export const CONFIG = {
 
   // Punktwerte und Schwierigkeits-Mix je Runde (Werte-Rampe aus dem Konzept §1.3).
   rounds: [
-    { value: { leicht: 100, mittel: 150, schwer: 200 }, mix: { leicht: 0.7, mittel: 0.25, schwer: 0.05 }, time: 22 },
-    { value: { leicht: 150, mittel: 200, schwer: 300 }, mix: { leicht: 0.55, mittel: 0.35, schwer: 0.1 }, time: 20 },
-    { value: { leicht: 200, mittel: 300, schwer: 400 }, mix: { leicht: 0.4, mittel: 0.4, schwer: 0.2 }, time: 18 },
-    { value: { leicht: 250, mittel: 400, schwer: 550 }, mix: { leicht: 0.25, mittel: 0.45, schwer: 0.3 }, time: 16 },
-    { value: { leicht: 300, mittel: 500, schwer: 700 }, mix: { leicht: 0.15, mittel: 0.45, schwer: 0.4 }, time: 15 },
+    { value: { leicht: 100, mittel: 150, schwer: 200 }, mix: { leicht: 0.7, mittel: 0.25, schwer: 0.05 } },
+    { value: { leicht: 150, mittel: 200, schwer: 300 }, mix: { leicht: 0.55, mittel: 0.35, schwer: 0.1 } },
+    { value: { leicht: 200, mittel: 300, schwer: 400 }, mix: { leicht: 0.4, mittel: 0.4, schwer: 0.2 } },
+    { value: { leicht: 250, mittel: 400, schwer: 550 }, mix: { leicht: 0.25, mittel: 0.45, schwer: 0.3 } },
+    { value: { leicht: 300, mittel: 500, schwer: 700 }, mix: { leicht: 0.15, mittel: 0.45, schwer: 0.4 } },
   ],
 
-  // Tempo-Regler der Lobby skaliert den Antwort-Timer.
-  pace: {
-    blitz: { factor: 0.6, label: 'Blitz' },
-    standard: { factor: 1, label: 'Standard' },
-    gemuetlich: { factor: 1.45, label: 'Gemütlich' },
-  },
+  // Wie lange man pro Frage tippen darf — frei einstellbar in der Lobby.
+  // Gilt für jede Frage gleich: eine Zahl, die man sich merken kann.
+  answerTime: { min: 10, max: 60, step: 5, default: 25 },
 
   // Dauer der inszenierten Phasen in Millisekunden.
   // Diese Zahlen sind Choreografie, keine Technik — sie bestimmen das Drama.
@@ -53,7 +50,6 @@ export const CONFIG = {
     tiebreakReveal: 5600,
     elimination: 9800,
     finalIntro: 7000,
-    finalDraft: 12000,
     finalQuestion: 20000,
     finalReveal: 5400,
     // Nachlauf, nachdem alle geantwortet haben — verhindert, dass ein
@@ -64,7 +60,6 @@ export const CONFIG = {
   finale: {
     winScore: 3,
     maxQuestions: 7,
-    draftOptions: 3,
   },
 
   chat: {
@@ -111,10 +106,11 @@ export function roundSpec(round) {
   return CONFIG.rounds[Math.min(round, CONFIG.rounds.length) - 1];
 }
 
-export function answerTimeMs(round, pace) {
-  const spec = roundSpec(round);
-  const factor = (CONFIG.pace[pace] || CONFIG.pace.standard).factor;
-  return scaled(spec.time * factor * 1000);
+/** Die eingestellte Antwortzeit, auf den erlaubten Bereich gestutzt. */
+export function answerTimeMs(settings) {
+  const { min, max, default: fallback } = CONFIG.answerTime;
+  const seconds = Number.isFinite(settings?.answerSeconds) ? settings.answerSeconds : fallback;
+  return scaled(Math.min(max, Math.max(min, Math.round(seconds))) * 1000);
 }
 
 /** Skaliert eine Choreografie-Dauer mit dem Zeitraffer. */

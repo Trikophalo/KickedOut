@@ -71,6 +71,73 @@ function syncMuteButton() {
   muteBtn.classList.toggle('mint', prefs.muted);
 }
 
+/** Antwortzeit als Schieber — eine Zahl statt drei Stufen. */
+function timeRow(s, patch, range) {
+  const { min = 10, max = 60, step = 5 } = range || {};
+  const value = el('span', { class: 'value' }, `${s.answerSeconds} s`);
+  const input = el('input', {
+    type: 'range', min: String(min), max: String(max), step: String(step),
+    value: String(s.answerSeconds), 'aria-label': 'Antwortzeit je Frage',
+  });
+  // Beim Schieben nur die Anzeige, erst beim Loslassen geht es zum Server.
+  input.addEventListener('input', () => { value.textContent = `${input.value} s`; });
+  input.addEventListener('change', () => { audio.play('tap'); patch({ answerSeconds: Number(input.value) }); });
+  return el('div', { class: 'slider-row' }, el('span', { class: 'name' }, 'Zeit'), input, value);
+}
+
+/**
+ * Die Spielregeln als fertige Blöcke — die Lobby zeigt sie offen an, das
+ * Einstellungs-Fenster hängt sie an, wenn das Spiel schon läuft.
+ * @param {object} ctx  Netz, aktuelle Einstellungen, Kategorien, Grenzen.
+ */
+export function gameSettingGroups(ctx = {}) {
+  if (!ctx.canConfigure || !ctx.settings || !ctx.net) return [];
+  const patch = (partial) => ctx.net.send({ t: 'settings', settings: partial });
+  const s = ctx.settings;
+  const chipRow = (children) => el('div', { class: 'chips' }, ...children);
+  const pickOne = (event) => {
+    audio.play('tap');
+    [...event.currentTarget.parentElement.children].forEach((c) => c.classList.remove('on'));
+    event.currentTarget.classList.add('on');
+  };
+
+  return [
+    el('div', { class: 'sheet-group' },
+      el('span', { class: 'label' }, 'Antwortzeit'),
+      el('p', { class: 'sheet-hint' }, 'So lange darf pro Frage getippt werden — von 10 Sekunden bis zu einer Minute.'),
+      timeRow(s, patch, ctx.answerTime)),
+
+    el('div', { class: 'sheet-group' },
+      el('span', { class: 'label' }, 'Fragen pro Runde'),
+      el('p', { class: 'sheet-hint' }, 'So viele Fragen laufen durch, bevor über die dümmste Antwort abgestimmt wird.'),
+      chipRow([2, 3, 4, 5, 6, 7, 8].map((n) => el('button', {
+        class: `chip${s.questionsPerRound === n ? ' on' : ''}`, type: 'button',
+        onclick: (event) => { pickOne(event); patch({ questionsPerRound: n }); },
+      }, String(n))))),
+
+    el('div', { class: 'sheet-group' },
+      el('span', { class: 'label' }, 'Kategorien'),
+      el('p', { class: 'sheet-hint' }, 'Aus diesen Fächern zieht das Spiel vor jeder Frage eine Kategorie.'),
+      chipRow(Object.entries(ctx.categories || {}).map(([key, meta]) => el('button', {
+        class: `chip${s.categories.includes(key) ? ' on' : ''}`, type: 'button',
+        onclick: (event) => {
+          const next = s.categories.includes(key) ? s.categories.filter((c) => c !== key) : [...s.categories, key];
+          if (!next.length) return;
+          audio.play('tap');
+          event.currentTarget.classList.toggle('on');
+          patch({ categories: next });
+        },
+      }, `${meta.icon} ${meta.label}`)))),
+
+    el('div', { class: 'sheet-group' },
+      el('span', { class: 'label' }, 'Moderator'),
+      chipRow([['charmant', 'Charmant'], ['bissig', 'Bissig'], ['gnadenlos', 'Gnadenlos']].map(([key, label]) => el('button', {
+        class: `chip${s.tone === key ? ' on' : ''}`, type: 'button',
+        onclick: (event) => { pickOne(event); patch({ tone: key }); },
+      }, label)))),
+  ];
+}
+
 /**
  * @param {object} ctx  Kontext aus der aufrufenden Ansicht: Netz, Raum-Code,
  *                      Spieleinstellungen und ob sie geändert werden dürfen.
@@ -109,69 +176,39 @@ export function openSettings(ctx = {}) {
       },
     }, document.fullscreenElement ? '🡴 Vollbild verlassen' : '⛶ Vollbild')));
 
-  // --- Spielregeln (nur Gastgeber, nur in der Lobby) --------------------
-  if (ctx.canConfigure && ctx.settings && ctx.net) {
-    const patch = (partial) => ctx.net.send({ t: 'settings', settings: partial });
-    const s = ctx.settings;
-    const chipRow = (children) => el('div', { class: 'chips' }, ...children);
-
-    groups.push(el('div', { class: 'sheet-group' },
-      el('span', { class: 'label' }, 'Tempo'),
-      chipRow(Object.entries(ctx.pace || {}).map(([key, meta]) => el('button', {
-        class: `chip${s.pace === key ? ' on' : ''}`, type: 'button',
-        onclick: () => { audio.play('tap'); patch({ pace: key }); closeSettings(); },
-      }, meta.label)))));
-
-    groups.push(el('div', { class: 'sheet-group' },
-      el('span', { class: 'label' }, 'Fragen pro Runde'),
-      el('p', { class: 'sheet-hint' }, 'So viele Fragen laufen durch, bevor über die dümmste Antwort abgestimmt wird.'),
-      chipRow([2, 3, 4, 5, 6, 7, 8].map((n) => el('button', {
-        class: `chip${s.questionsPerRound === n ? ' on' : ''}`, type: 'button',
-        onclick: (event) => {
-          audio.play('tap');
-          [...event.currentTarget.parentElement.children].forEach((c) => c.classList.remove('on'));
-          event.currentTarget.classList.add('on');
-          patch({ questionsPerRound: n });
-        },
-      }, String(n))))));
-
-    groups.push(el('div', { class: 'sheet-group' },
-      el('span', { class: 'label' }, 'Kategorien'),
-      chipRow(Object.entries(ctx.categories || {}).map(([key, meta]) => el('button', {
-        class: `chip${s.categories.includes(key) ? ' on' : ''}`, type: 'button',
-        onclick: (event) => {
-          const next = s.categories.includes(key) ? s.categories.filter((c) => c !== key) : [...s.categories, key];
-          if (!next.length) return;
-          audio.play('tap');
-          event.currentTarget.classList.toggle('on');
-          patch({ categories: next });
-        },
-      }, `${meta.icon} ${meta.label}`)))));
-
-    groups.push(el('div', { class: 'sheet-group' },
-      el('span', { class: 'label' }, 'Moderator'),
-      chipRow([['charmant', 'Charmant'], ['bissig', 'Bissig'], ['gnadenlos', 'Gnadenlos']].map(([key, label]) => el('button', {
-        class: `chip${s.tone === key ? ' on' : ''}`, type: 'button',
-        onclick: () => { audio.play('tap'); patch({ tone: key }); closeSettings(); },
-      }, label)))));
-  }
+  // Die Spielregeln stehen in der Lobby ohnehin schon offen — hier
+  // kommen sie nur dazu, wenn das Spiel schon läuft.
+  groups.push(...gameSettingGroups(ctx));
 
   // --- Raum -------------------------------------------------------------
   if (ctx.code) {
-    groups.push(el('div', { class: 'sheet-group' },
+    // Code und Link sind das, was man hier weitergibt — die stehen mittig.
+    groups.push(el('div', { class: 'sheet-group sheet-room' },
       el('span', { class: 'label' }, 'Raum'),
       el('div', { class: 'chips' },
         el('span', { class: 'chip on', style: { letterSpacing: '.15em' } }, ctx.code),
-        ctx.onCopy ? el('button', { class: 'chip', type: 'button', onclick: ctx.onCopy }, '🔗 Link kopieren') : null),
-      ctx.onLeave ? el('button', { class: 'btn ghost block', onclick: ctx.onLeave }, 'Raum verlassen') : null));
+        ctx.onCopy ? el('button', { class: 'chip', type: 'button', onclick: ctx.onCopy }, '🔗 Link kopieren') : null)));
   }
 
-  groups.push(el('p', { style: { fontSize: '.78rem', color: 'var(--muted)', textAlign: 'center' } },
+  groups.push(el('p', { class: 'sheet-hint', style: { textAlign: 'center' } },
     'Escape schließt dieses Fenster.'));
 
-  const panel = el('div', { class: 'sheet-panel', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Einstellungen' },
+  // Der Ausstieg steht ganz unten und mit Abstand — man trifft ihn nicht
+  // aus Versehen beim Ton-Regeln.
+  if (ctx.onLeave) {
+    groups.push(el('div', { class: 'sheet-group sheet-exit' },
+      el('button', { class: 'btn ghost block', onclick: ctx.onLeave }, '🚪 Raum verlassen')));
+  }
+
+  openPanel('⚙️ Einstellungen', groups);
+}
+
+/** Baut den Fenster-Rahmen und hängt ihn ein. */
+export function openPanel(title, groups) {
+  closeSettings();
+  const panel = el('div', { class: 'sheet-panel', role: 'dialog', 'aria-modal': 'true', 'aria-label': title },
     el('div', { class: 'sheet-head' },
-      el('h2', { class: 'display' }, '⚙️ Einstellungen'),
+      el('h2', { class: 'display' }, title),
       el('button', { class: 'icon-btn plain', 'aria-label': 'Schließen', onclick: closeSettings }, '✕')),
     ...groups.filter(Boolean));
 
@@ -182,4 +219,5 @@ export function openSettings(ctx = {}) {
 
   ($('#sheetHost') || document.body).append(sheet);
   panel.querySelector('button')?.focus();
+  return panel;
 }

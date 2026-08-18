@@ -391,3 +391,18 @@ input[type="range"]::-moz-range-thumb {
 .icon-btn:hover { background: rgba(255, 255, 255, 0.15); transform: rotate(35deg); }
 .icon-btn.plain:hover { transform: scale(1.1); }
 .icon-btn:active { transform: scale(0.92); }
+
+/* Raum-Code und Link stehen mittig — das ist, was man weitergibt. */
+.sheet-room { justify-items: center; text-align: center; }
+.sheet-room .chips { justify-content: center; }
+
+/* Der Ausstieg sitzt unten und mit Luft davor. */
+.sheet-exit { margin-top: 1.4rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+
+/* Das eigene Profil im selben Fenster-Rahmen. */
+.profile-head { justify-items: center; text-align: center; gap: 0.4rem; }
+.profile-head h3 { font-size: 1.5rem; }
+.profile-stats { grid-auto-flow: column; justify-content: center; gap: 1.6rem; }
+.profile-stat { display: grid; justify-items: center; }
+.profile-stat .num { font-family: var(--font-display); font-weight: 800; font-size: 1.3rem; }
+.profile-stat .cap { font-size: 0.74rem; color: var(--muted); }

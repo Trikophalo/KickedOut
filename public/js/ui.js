@@ -44,7 +44,7 @@ const PHASE_ACCENT = {
   lobby: 'sky', intro: 'gold', round_intro: 'sky', category: 'gold', question: 'sky', reveal: 'mint',
   round_end: 'sky', voting: 'vote', vote_reveal: 'vote', tiebreak: 'gold',
   tiebreak_reveal: 'gold', elimination: 'coral', final_intro: 'gold',
-  final_draft: 'gold', final_question: 'gold', final_reveal: 'gold', results: 'mint',
+  final_question: 'gold', final_reveal: 'gold', results: 'mint',
 };
 
 export function applyAccent(phase) {
