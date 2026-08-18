@@ -380,6 +380,12 @@
    ============================================================ */
 
 @media (min-width: 960px) {
+  /* Ohne Seitenspalte gehört die ganze Breite dem Beitritt — mittig. */
+  body.joining .ctl {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: 'top' 'main' 'mod';
+  }
+
   .ctl-main > .join {
     max-width: 54rem; align-content: center;
     display: grid; justify-content: center;

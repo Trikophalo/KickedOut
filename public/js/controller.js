@@ -65,6 +65,7 @@ const EMOJIS = ['😂', '😱', '🔥', '💀', '👏', '🤡', '❤️'];
 const pickOne = (list) => list[Math.floor(Math.random() * list.length)];
 
 net.on('joined', ({ code, playerId, token, resumed, created }) => {
+  document.body.classList.remove('joining');
   session.save({ code, playerId, token });
   roomCode = code;
   history.replaceState(null, '', `/join/${code}`);
@@ -132,6 +133,10 @@ function renderConnecting() {
 
 function renderJoin() {
   sceneKey = 'join';
+  // Solange niemand am Tisch sitzt, gibt es auch keine Seitenspalte —
+  // das Raster darf ihren Platz nicht freihalten, sonst hängt der
+  // Beitritt schief im Bild.
+  document.body.classList.add('joining');
   $('#ctlTop').hidden = true;
   $('#foot').hidden = true;
   $('#side').hidden = true;
