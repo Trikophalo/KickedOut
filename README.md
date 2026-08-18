@@ -13,6 +13,23 @@ Dann am großen Screen `http://localhost:3000/host` öffnen, und alle anderen sc
 
 ---
 
+## So sieht das aus
+
+| Bühne (der große Screen) | Handy (der Controller) |
+|---|---|
+| ![Lobby mit Raum-Code und QR-Code](docs/screenshots/01-buehne-lobby.jpg) | ![Figur bauen beim Beitreten](docs/screenshots/02-controller-beitritt.jpg) |
+| **Lobby** — Raum-Code, QR und die Runde füllt sich | **Beitritt** — Name und Figur in zehn Sekunden |
+| ![Auflösung mit Avataren auf den Antworten](docs/screenshots/06-buehne-aufloesung.jpg) | ![Vollflächiges persönliches Ergebnis](docs/screenshots/05-controller-frage.jpg) |
+| **Auflösung** — die Avatare springen auf ihre Wahl | **Fragerunde** — vier Buttons, sonst nichts |
+| ![Anonymes Voting mit Rundenbilanz](docs/screenshots/07-buehne-voting.jpg) | ![Voting mit Kandidat und Pflicht-Begründung](docs/screenshots/08-controller-voting.jpg) |
+| **Voting** — Bilanz sichtbar, Stimmen nicht | **Abstimmen** — ohne Begründung geht der Knopf nicht auf |
+| ![Rausschmiss mit Spotlight und Stempel](docs/screenshots/10-buehne-rausschmiss.jpg) | ![Geisterzone mit Chat und Prophezeiungen](docs/screenshots/14-controller-geist.jpg) |
+| **Rausschmiss** — Spotlight, Stempel, Katapult | **Geisterzone** — raus, aber nicht weg |
+
+<sub>Screenshots automatisch erzeugt von `scripts/browsertest.js`, das eine komplette Partie in echtem Chromium durchspielt. Die Schrift ist hier die Fallback-Variante — in der Sandbox war Google Fonts nicht erreichbar.</sub>
+
+---
+
 ## So läuft eine Partie
 
 | Phase | Was passiert |
@@ -38,7 +55,7 @@ Bei 8–9 Spielern fliegen in den ersten Runden zwei auf einmal — so bleibt de
 
 **Fragen sind Frischware.** Ein kuratierter Grundstock von 180 Fragen ist immer da; im Hintergrund erzeugt eine Pipeline laufend neue aus **Wikidata**-Fakten-Tripeln mit deutschen Labels. Wiederholungsfreiheit über drei Ebenen: Session-Sperre, 90-Tage-Gruppengedächtnis und Fakten-Key-Cooldown (auch die *umgedrehte* Hauptstadt-Frage pausiert mit).
 
-**Sound ohne eine einzige Audio-Datei.** Alle 25 Klänge — Amboss, Eisknacken, Trommelwirbel, Sieger-Fanfare — sind zur Laufzeit mit Web Audio synthetisiert. Die Musik ist geschichtet: Mit jeder Runde kommt eine Ebene dazu, Runde 5 klingt gefährlicher als Runde 1.
+**Sound ohne eine einzige Audio-Datei.** Alle 31 Klänge — Amboss, Eisknacken, Trommelwirbel, Sieger-Fanfare — sind zur Laufzeit mit Web Audio synthetisiert. Die Musik ist geschichtet: Mit jeder Runde kommt eine Ebene dazu, Runde 5 klingt gefährlicher als Runde 1.
 
 **Der QR-Code kommt aus dem eigenen Code.** Eigener Encoder (Byte-Modus, Fehlerkorrektur L) — ein QR-Dienst aus dem Netz wäre genau dann weg, wenn man ihn im Wohnzimmer-WLAN braucht.
 
@@ -94,7 +111,7 @@ KO_TEST_PLAYERS=9 npm test            # mit Doppelrausschmiss
 node scripts/browsertest.js           # echtes Chromium, Screenshots in ./screenshots/
 ```
 
-Beide Tests starten den echten Server im Zeitraffer (`KO_TIME_SCALE`) und spielen eine vollständige Partie durch.
+Beide Tests starten den echten Server im Zeitraffer (`KO_TIME_SCALE`) und spielen eine vollständige Partie durch. Der Selbsttest prüft 34 Zusagen, darunter die beiden, die man an einem Spieleabend nicht mehr nachbessern kann: dass die Lösung nie vor der Auflösung ausgeliefert wird und dass die Zuordnung Stimme→Wähler den Server nie verlässt. Der Browser-Test meldet jeden Konsolenfehler und jede Ausnahme auf Bühne und Handy — er hat unter anderem ein unsichtbares Overlay gefunden, das auf dem Handy jeden Tap verschluckt hätte.
 
 ### Umgebungsvariablen
 
