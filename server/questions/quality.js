@@ -29,7 +29,10 @@ export function validate(q) {
   else {
     if (q.options.some((o) => typeof o !== 'string' || !o.trim())) problems.push('Leere Option');
     if (q.options.some((o) => o.length > MAX_OPTION)) problems.push('Option zu lang für die Bühne');
-    const seen = new Set(q.options.map((o) => normalize(o)));
+    // Bewusst nur Groß-/Kleinschreibung und Leerraum angleichen: Die harte
+    // Normalisierung wirft Satz- und Rechenzeichen weg, und bei Antworten wie
+    // „a² + b² = c²“ gegen „a² − b² = c²“ steckt der Unterschied genau dort.
+    const seen = new Set(q.options.map((o) => o.toLowerCase().replace(/\s+/g, ' ').trim()));
     if (seen.size !== q.options.length) problems.push('Doppelte Optionstexte');
   }
   if (!Number.isInteger(q.correct) || q.correct < 0 || q.correct > 3) problems.push('correct außerhalb 0..3');

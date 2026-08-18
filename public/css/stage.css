@@ -6,8 +6,9 @@
 .stage {
   position: relative; z-index: 1;
   height: 100vh; height: 100dvh;
-  display: grid; grid-template-rows: auto 1fr auto;
-  gap: clamp(0.6rem, 1.5vh, 1.2rem);
+  /* HUD · Szene · Moderator · Spielerleiste */
+  display: grid; grid-template-rows: auto 1fr auto auto;
+  gap: clamp(0.5rem, 1.2vh, 1rem);
   padding: clamp(0.8rem, 2vh, 1.6rem) clamp(1rem, 3vw, 2.4rem);
 }
 
@@ -29,9 +30,6 @@
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: clamp(0.8rem, 2vh, 1.6rem); min-height: 0; text-align: center; position: relative;
   overflow-y: auto; overflow-x: hidden;
-  /* Der Moderator-Balken schwebt über dem unteren Rand der Szene —
-     ohne diese Reserve läuft der Inhalt darunter durch. */
-  padding-bottom: clamp(3.2rem, 7vh, 4.6rem);
 }
 .scene > * { max-width: 100%; flex: 0 0 auto; }
 
@@ -41,6 +39,13 @@ body[data-phase="results"] .scene { justify-content: flex-start; gap: 0.7rem; pa
 body[data-phase="results"] .podium .avatar { --size: clamp(72px, 9vw, 108px); }
 body[data-phase="results"] .crown { font-size: clamp(1.8rem, 3.4vw, 2.8rem); }
 body[data-phase="results"] .headline { font-size: clamp(1.5rem, 3.4vw, 2.6rem); }
+
+.resultgrid {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  gap: clamp(0.8rem, 2.5vw, 2.4rem); align-items: start; width: 100%;
+}
+.resultgrid .col { display: flex; flex-direction: column; align-items: center; gap: 0.7rem; min-width: 0; }
+@media (max-width: 860px) { .resultgrid { grid-template-columns: 1fr; } }
 
 .headline { font-size: clamp(1.8rem, 5vw, 4rem); }
 .headline.small { font-size: clamp(1.4rem, 3.2vw, 2.4rem); }
@@ -287,7 +292,9 @@ body[data-phase="lobby"] .rail .players { visibility: hidden; }
   padding: 0.4rem; font-size: 0.9rem;
 }
 
-.moderator-slot { min-height: 3.6rem; display: flex; align-items: center; justify-content: center; }
+/* Feste Mindesthöhe, damit die Szene nicht springt, sobald der Moderator
+   etwas sagt oder verstummt. */
+.moderator-slot { min-height: clamp(3rem, 6vh, 3.8rem); display: flex; align-items: center; justify-content: center; }
 .moderator { animation: riseIn 380ms cubic-bezier(.2,1.4,.4,1); font-size: clamp(0.85rem, 1.6vw, 1.25rem); }
 
 .sound-hint {

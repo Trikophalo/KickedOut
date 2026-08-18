@@ -7,7 +7,10 @@
    Screenshots der Schlüsselmomente.
 
    Aufruf:  node scripts/browsertest.js
-   Screenshots landen in ./screenshots/
+   Screenshots landen in ./screenshots/ (große PNGs zum Anschauen).
+
+   Für die Bilder in der README:
+   KO_SHOT_DIR=docs/screenshots KO_SHOT_JPEG=1 node scripts/browsertest.js
    ============================================================ */
 
 import { spawn } from 'node:child_process';
@@ -20,8 +23,12 @@ import { existsSync } from 'node:fs';
 
 const PORT = 3800 + Math.floor(Math.random() * 150);
 const BASE = `http://127.0.0.1:${PORT}`;
-const SHOTS = 'screenshots';
 const PLAYERS = 4;
+
+// Standardmäßig große PNGs zum Anschauen. Für die Bilder in der README
+// schaltet KO_SHOT_JPEG=1 auf handliche JPEGs um.
+const SHOTS = process.env.KO_SHOT_DIR || 'screenshots';
+const JPEG = process.env.KO_SHOT_JPEG === '1';
 
 const problems = [];
 const shots = [];
@@ -56,7 +63,7 @@ async function main() {
   };
 
   // --- Bühne ---------------------------------------------------------
-  const stageCtx = await browser.newContext({ viewport: { width: 1440, height: 810 } });
+  const stageCtx = await browser.newContext({ viewport: { width: 1440, height: 810 }, deviceScaleFactor: JPEG ? 1 : 2 });
   const stage = await stageCtx.newPage();
   watch(stage, 'Bühne');
   await stage.goto(`${BASE}/host`, { waitUntil: 'domcontentloaded' });
@@ -66,8 +73,8 @@ async function main() {
   console.log(`  Raum-Code: ${code}`);
 
   const shot = async (page, name) => {
-    const path = join(SHOTS, `${name}.png`);
-    await page.screenshot({ path });
+    const path = join(SHOTS, `${name}.${JPEG ? 'jpg' : 'png'}`);
+    await page.screenshot(JPEG ? { path, type: 'jpeg', quality: 82 } : { path });
     shots.push(path);
   };
 
@@ -77,7 +84,7 @@ async function main() {
   for (let i = 0; i < PLAYERS; i++) {
     const ctx = await browser.newContext({
       viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true,
-      deviceScaleFactor: 2,
+      deviceScaleFactor: JPEG ? 1 : 2,
     });
     const page = await ctx.newPage();
     watch(page, names[i]);

@@ -241,7 +241,7 @@ function updateModerator() {
   if (!line) { slot.replaceChildren(); return; }
   if (slot.dataset.said === line.text) return;
   slot.dataset.said = line.text;
-  slot.replaceChildren(el('div', { class: 'moderator', style: { pointerEvents: 'auto', margin: '0 auto' } },
+  slot.replaceChildren(el('div', { class: 'moderator' },
     el('span', { class: 'who' }, '🎙'),
     el('span', { class: 'said' }, line.text)));
   audio.duck(2200);
@@ -419,7 +419,10 @@ const BUILDERS = {
   results() {
     const r = state.results;
     const winner = r.winnerId ? byId(r.winnerId) : null;
-    scene.append(
+
+    // Zwei Spalten, damit Podest, Awards, Recap und Tabelle auf einen
+    // Fernseher passen — auf einem Fernseher scrollt niemand.
+    const left = el('div', { class: 'col' },
       winner
         ? el('div', { class: 'podium' },
           el('div', { class: 'crown' }, '👑'),
@@ -434,12 +437,15 @@ const BUILDERS = {
           el('div', { style: { textAlign: 'left' } },
             el('div', { class: 'who' }, `${a.label}${who ? ` — ${who.nick}` : ''}`),
             el('div', { class: 'what' }, a.detail || a.hint)));
-      })),
+      })));
+
+    const right = el('div', { class: 'col' },
       r.recap.length ? el('div', { class: 'recap' }, ...r.recap.map((m) => el('div', { class: 'item' },
         el('div', { class: 't' }, m.title), el('div', { class: 'd' }, m.detail)))) : null,
       scoreTable(r.table),
-      el('p', { class: 'subline' }, 'Der Gastgeber kann auf dem Handy die Revanche starten.'),
-    );
+      el('p', { class: 'subline' }, 'Der Gastgeber kann auf dem Handy die Revanche starten.'));
+
+    scene.append(el('div', { class: 'resultgrid' }, left, right));
     r.awards.forEach((_, i) => setTimeout(() => audio.play('award'), 500 + i * 220));
   },
 };

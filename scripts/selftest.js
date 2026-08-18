@@ -55,7 +55,12 @@ class Client {
 
   receive(msg) {
     if (msg.t === 'room') this.code = msg.code;
-    if (msg.t === 'joined') { this.code = msg.code; this.playerId = msg.playerId; }
+    if (msg.t === 'joined') {
+      this.code = msg.code;
+      this.playerId = msg.playerId;
+      this.token = msg.token;
+      this.resumed = Boolean(msg.resumed);
+    }
     if (msg.t === 'error') this.errors.push(msg.msg);
     if (msg.t === 'fx') this.fx.push(msg.name);
     if (msg.t !== 'state') return;
@@ -155,6 +160,14 @@ async function main() {
   try {
     await waitFor(() => serverLog.includes('Poolgesundheit'), 15000, 'Serverstart');
 
+    // Der Grundstock muss vollständig ankommen. Fällt hier eine Frage durch,
+    // liegt es an der Qualitätsprüfung und nicht an der Frage selbst.
+    const health = await (await fetch(`http://127.0.0.1:${PORT}/api/health`)).json();
+    const { BANK } = await import('../server/questions/bank.js');
+    check('Der komplette Fragen-Grundstock ist im Pool', health.questions.total === BANK.length,
+      `${health.questions.total} von ${BANK.length}`);
+    check('Der Moderator hat einen gefüllten Spruch-Pool', health.moderatorLines > 400, `${health.moderatorLines}`);
+
     const stage = new Client('Bühne', { t: 'createRoom' });
     await stage.connect();
     await waitFor(() => stage.code, 3000, 'Raum-Code');
@@ -185,6 +198,27 @@ async function main() {
     check('Genau ein Gastgeber', players.filter((p) => p.state.you.isHost).length === 1);
 
     host.send({ t: 'start' });
+    await waitFor(() => stage.state?.phase !== 'lobby', 5000, 'Spielstart');
+
+    // Funkloch mitten im Spiel: Der Platz muss stehen bleiben, und mit dem
+    // Token muss man wieder auf denselben Platz zurückkommen.
+    const dropout = players[players.length - 1];
+    const droppedId = dropout.playerId;
+    const droppedToken = dropout.token;
+    dropout.close();
+    await waitFor(() => stage.state.players.find((p) => p.id === droppedId)?.connected === false,
+      6000, 'Trennung wird bemerkt');
+    check('Ein getrennter Spieler behält seinen Platz',
+      stage.state.players.some((p) => p.id === droppedId));
+
+    const returning = new Client('Rückkehrer', { t: 'resume', code: stage.code, token: droppedToken });
+    await returning.connect();
+    await waitFor(() => returning.state?.you, 6000, 'Wiedereinstieg');
+    players[players.length - 1] = returning;
+    check('Wiedereinstieg landet auf demselben Platz',
+      returning.playerId === droppedId && returning.resumed, `${returning.playerId} vs ${droppedId}`);
+    check('Der Rückkehrer ist wieder verbunden',
+      stage.state.players.find((p) => p.id === droppedId)?.connected === true);
 
     await waitFor(() => stage.state?.phase === 'results', 90000, 'Spielende');
 

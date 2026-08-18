@@ -39,13 +39,15 @@
 
   <main class="scene" id="scene"></main>
 
+  <!-- Der Moderator bekommt eine eigene Zeile im Raster statt zu schweben:
+       So kann sein Band nichts überdecken, egal wie hoch die Szene wird. -->
+  <div class="moderator-slot" id="modSlot"></div>
+
   <footer class="rail">
     <div class="players" id="players"></div>
     <div class="ticker" id="ticker" aria-live="polite"></div>
   </footer>
 </div>
-
-<div class="moderator-slot" id="modSlot" style="position:fixed;left:0;right:0;bottom:clamp(4.2rem,10vh,6rem);pointer-events:none;z-index:5"></div>
 
 <div class="sound-hint" id="soundHint">
   <div style="max-width:34ch">

@@ -1,6 +1,7 @@
 node_modules/
 data/
-screenshots/
+# Nur die Arbeitsausgabe des Browser-Tests; docs/screenshots/ gehört ins Repo.
+/screenshots/
 *.log
 .DS_Store
 .env
