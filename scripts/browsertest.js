@@ -217,7 +217,7 @@ async function main() {
       for (const page of phones) {
         const status = await textNow(page, '#voteStatus');
         if (status === null || status.includes('Stimme ist drin')) continue;
-        const cards = await page.$('.answercard:not([disabled])').catch(() => []);
+        const cards = await page.$$('.answercard:not([disabled])').catch(() => []);
         if (!cards.length) continue;
         await cards[Math.floor(Math.random() * cards.length)].click().catch(() => {});
       }
@@ -276,7 +276,7 @@ async function main() {
 
     if (phase === 'final_draft') {
       for (const page of phones) {
-        const cards = await page.$('.cand').catch(() => []);
+        const cards = await page.$$('.cand').catch(() => []);
         if (cards.length) await cards[0].click().catch(() => {});
       }
     }
