@@ -1,0 +1,286 @@
+/* ============================================================
+   KICKED OUT — Designsystem „Studio-Glow"
+   Die Bühnenhaftigkeit einer TV-Show in der aufgeräumten,
+   verspielten Cartoon-Moderne von Codenames Online / Gartic Phone.
+   Alles ist rund, dick und drückbar.
+   ============================================================ */
+
+:root {
+  /* Bühne */
+  --stage-0: #14102e;
+  --stage-1: #1e1b4b;
+  --stage-2: #312e81;
+  --stage-3: #4c1d95;
+
+  /* Karten */
+  --card: #fff8ef;
+  --card-2: #f6eddf;
+  --card-edge: #e7dcc8;
+  --ink: #221e52;
+  --ink-soft: #5a5490;
+
+  /* Text auf der Bühne */
+  --text: #edeaff;
+  --muted: #afa9dc;
+  --line: rgba(237, 234, 255, 0.14);
+
+  /* Signalfarben */
+  --mint: #2dd4a8;   --mint-deep: #0e8f6b;   --mint-soft: #a9efd9;
+  --coral: #ff5c5c;  --coral-deep: #ce3434;  --coral-soft: #ffc2c2;
+  --gold: #ffc94d;   --gold-deep: #b47e14;   --gold-soft: #ffe3a1;
+  --vote: #8b5cf6;   --vote-deep: #6743cf;   --vote-soft: #d7c6ff;
+  --sky: #5aa7ff;    --sky-deep: #2e6fbf;    --sky-soft: #bfdbff;
+
+  --shadow: 0 18px 50px rgba(8, 5, 32, 0.5);
+  --shadow-card: 0 10px 0 rgba(8, 5, 32, 0.35);
+  --r: 22px;
+  --r-sm: 14px;
+
+  --font-display: 'Baloo 2', 'Trebuchet MS', 'Segoe UI', system-ui, sans-serif;
+  --font-body: 'Nunito Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
+
+  /* Leitfarbe der Phase — wird per JS umgeschaltet */
+  --accent: var(--sky);
+  --accent-soft: var(--sky-soft);
+  --accent-deep: var(--sky-deep);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body { height: 100%; }
+
+body {
+  background: var(--stage-1);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 17px;
+  line-height: 1.5;
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, .display { font-family: var(--font-display); font-weight: 800; line-height: 1.1; text-wrap: balance; }
+
+button, input, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; border: 0; background: none; }
+
+:focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; border-radius: 8px; }
+
+.tabular { font-variant-numeric: tabular-nums; }
+.hidden { display: none !important; }
+
+/* Klassen wie .flash oder .timer setzen display und schlagen damit das
+   Standardverhalten von [hidden]. Ohne diese Zeile bleibt ein „verstecktes"
+   Overlay unsichtbar liegen und schluckt jeden Tap. */
+[hidden] { display: none !important; }
+
+/* ---------------------------------------------------------- Bühnenhintergrund */
+
+.bg {
+  position: fixed; inset: 0; z-index: -2; overflow: hidden;
+  background: linear-gradient(160deg, var(--stage-0) 0%, var(--stage-1) 32%, var(--stage-2) 68%, var(--stage-3) 100%);
+  transition: filter 600ms ease;
+}
+.bg .orb { position: absolute; border-radius: 50%; filter: blur(90px); opacity: 0.5; will-change: transform; }
+.bg .o1 { width: 46vw; height: 46vw; background: #5b3df0; top: -14vw; left: -10vw; animation: drift 34s ease-in-out infinite alternate; }
+.bg .o2 { width: 38vw; height: 38vw; background: #8b2fb9; bottom: -12vw; right: -8vw; animation: drift 41s ease-in-out infinite alternate-reverse; }
+.bg .o3 { width: 24vw; height: 24vw; background: #2a6fd6; top: 36%; right: 12%; opacity: 0.32; animation: drift 47s ease-in-out infinite alternate; }
+.bg .glyph {
+  position: absolute; font-family: var(--font-display); font-weight: 800;
+  color: rgba(237, 234, 255, 0.05); user-select: none;
+  animation: floaty 26s ease-in-out infinite alternate;
+}
+
+/* Der Hintergrund reagiert auf Ereignisse — Frost beim Kettenbruch,
+   Rotstich beim Matchball. Bühne, nie Konkurrenz. */
+.bg.frost { filter: hue-rotate(-30deg) brightness(1.15) saturate(0.7); }
+.bg.danger { filter: hue-rotate(-60deg) saturate(1.3) brightness(0.85); }
+.bg.gold { filter: hue-rotate(35deg) saturate(1.2); }
+
+@keyframes drift { from { transform: translate(0, 0) scale(1); } to { transform: translate(6vw, 4vh) scale(1.12); } }
+@keyframes floaty { from { transform: translateY(0) rotate(-6deg); } to { transform: translateY(-5vh) rotate(8deg); } }
+
+#fx { position: fixed; inset: 0; z-index: 40; pointer-events: none; }
+
+/* ---------------------------------------------------------- Bausteine */
+
+.card {
+  background: var(--card); color: var(--ink);
+  border-radius: var(--r); box-shadow: var(--shadow);
+}
+
+/* Buttons haben sichtbare Dicke, die beim Drücken einfedert.
+   Das ist der wichtigste Micro-Moment im ganzen Spiel. */
+.btn {
+  font-family: var(--font-display); font-weight: 800;
+  background: var(--gold); color: var(--ink);
+  border-radius: var(--r-sm); padding: 0.7em 1.5em;
+  box-shadow: 0 6px 0 var(--gold-deep);
+  transition: transform 110ms cubic-bezier(.2,1.6,.4,1), box-shadow 110ms, filter 150ms;
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.5em;
+  text-align: center; text-decoration: none;
+}
+.btn:hover { filter: brightness(1.05); }
+.btn:active, .btn.pressed { transform: translateY(5px); box-shadow: 0 1px 0 var(--gold-deep); }
+.btn:disabled { opacity: 0.45; box-shadow: 0 6px 0 var(--gold-deep); cursor: not-allowed; transform: none; filter: grayscale(0.5); }
+
+.btn.mint  { background: var(--mint);  box-shadow: 0 6px 0 var(--mint-deep); color: #06301f; }
+.btn.mint:active, .btn.mint.pressed { box-shadow: 0 1px 0 var(--mint-deep); }
+.btn.coral { background: var(--coral); box-shadow: 0 6px 0 var(--coral-deep); color: #3d0808; }
+.btn.coral:active, .btn.coral.pressed { box-shadow: 0 1px 0 var(--coral-deep); }
+.btn.vote  { background: var(--vote);  box-shadow: 0 6px 0 var(--vote-deep); color: #fff; }
+.btn.vote:active, .btn.vote.pressed { box-shadow: 0 1px 0 var(--vote-deep); }
+.btn.sky   { background: var(--sky);   box-shadow: 0 6px 0 var(--sky-deep); color: #05203f; }
+.btn.sky:active, .btn.sky.pressed { box-shadow: 0 1px 0 var(--sky-deep); }
+.btn.ghost { background: rgba(255,255,255,.08); box-shadow: 0 4px 0 rgba(0,0,0,.3); color: var(--text); }
+.btn.ghost:active { box-shadow: 0 1px 0 rgba(0,0,0,.3); }
+.btn.big { font-size: 1.35rem; padding: 0.8em 1.8em; }
+.btn.block { display: flex; width: 100%; }
+
+.chip {
+  font-family: var(--font-display); font-weight: 700; font-size: 0.85rem;
+  padding: 0.22em 0.8em; border-radius: 999px; white-space: nowrap;
+  background: rgba(255,255,255,.08); border: 1px solid var(--line); color: var(--text);
+}
+.chip.on { background: var(--accent); border-color: var(--accent); color: var(--ink); }
+
+.field {
+  background: rgba(255,255,255,.07); border: 2px solid var(--line);
+  border-radius: var(--r-sm); padding: 0.7em 0.9em; width: 100%;
+  color: var(--text); font-family: var(--font-body);
+}
+.field::placeholder { color: var(--muted); }
+.field:focus { border-color: var(--accent); outline: none; }
+
+/* ---------------------------------------------------------- Avatare */
+
+.avatar {
+  --size: 44px;
+  width: var(--size); height: var(--size); border-radius: 50%;
+  display: grid; place-items: center; position: relative;
+  font-size: calc(var(--size) * 0.55); line-height: 1;
+  border: 3px solid #fff; background: var(--sky);
+  flex: 0 0 auto; transition: transform 200ms cubic-bezier(.2,1.6,.4,1), opacity 250ms, filter 250ms;
+}
+.avatar .hat { position: absolute; top: -0.55em; right: -0.35em; font-size: 0.55em; }
+.avatar .tick {
+  position: absolute; right: -4px; bottom: -4px;
+  width: 1.1em; height: 1.1em; font-size: 0.5em; font-weight: 800;
+  background: var(--mint); color: #06301f; border: 2px solid #fff;
+  border-radius: 50%; display: grid; place-items: center;
+}
+.avatar.dead { filter: grayscale(1) brightness(0.75); opacity: 0.55; }
+.avatar.off { opacity: 0.4; }
+.avatar.pop { animation: pop 420ms cubic-bezier(.2,1.8,.4,1); }
+
+@keyframes pop { 0% { transform: scale(0.3) rotate(-25deg); } 60% { transform: scale(1.18) rotate(6deg); } 100% { transform: scale(1); } }
+@keyframes wobble { 0%,100% { transform: rotate(0); } 25% { transform: rotate(-7deg); } 75% { transform: rotate(7deg); } }
+@keyframes shake { 0%,100% { transform: translateX(0); } 20% { transform: translateX(-8px); } 40% { transform: translateX(8px); } 60% { transform: translateX(-5px); } 80% { transform: translateX(5px); } }
+@keyframes riseIn { from { opacity: 0; transform: translateY(24px) scale(0.94); } to { opacity: 1; transform: none; } }
+@keyframes flipIn { from { opacity: 0; transform: perspective(800px) rotateX(-70deg) translateY(-20px); } to { opacity: 1; transform: none; } }
+@keyframes pulseRing { 0%,100% { box-shadow: 0 0 0 0 rgba(255,92,92,.55); } 50% { box-shadow: 0 0 0 16px rgba(255,92,92,0); } }
+@keyframes glowPulse { 0%,100% { box-shadow: 0 0 10px rgba(255,201,77,.45); } 50% { box-shadow: 0 0 26px rgba(255,201,77,.95); } }
+
+.rise { animation: riseIn 400ms cubic-bezier(.2,1.3,.4,1) backwards; }
+.shake { animation: shake 400ms ease; }
+
+/* ---------------------------------------------------------- Kette & Pott */
+
+.pot {
+  font-family: var(--font-display); font-weight: 800;
+  color: var(--gold); background: rgba(255,201,77,.12);
+  border: 1.5px solid rgba(255,201,77,.4); border-radius: 999px;
+  padding: 0.2em 0.9em; white-space: nowrap;
+}
+.pot.bump { animation: pop 380ms cubic-bezier(.2,1.8,.4,1); }
+
+.chain { display: inline-flex; align-items: center; padding-left: 12px; }
+.chain .link {
+  width: 34px; height: 21px; border: 5px solid rgba(255,201,77,.25);
+  border-radius: 999px; margin-left: -12px; transform: rotate(7deg);
+  transition: border-color 320ms, box-shadow 320ms;
+}
+.chain .link:nth-child(even) { transform: rotate(-7deg); }
+.chain .link.on { border-color: var(--gold); animation: glowPulse 2.2s ease-in-out infinite; }
+.chain .link.ice { border-color: #9ad6f5; box-shadow: 0 0 12px rgba(154,214,245,.6); }
+
+/* ---------------------------------------------------------- Antwortkarten */
+
+.answers { display: grid; grid-template-columns: 1fr 1fr; gap: 0.7rem; }
+.answer {
+  font-family: var(--font-display); font-weight: 700;
+  color: var(--ink); border-radius: var(--r-sm);
+  padding: 0.75em 1em; text-align: left;
+  display: flex; align-items: center; gap: 0.6em;
+  box-shadow: 0 6px 0 rgba(8,5,32,.35);
+  transition: transform 130ms cubic-bezier(.2,1.6,.4,1), box-shadow 130ms, opacity 250ms, filter 250ms;
+  position: relative;
+}
+.answer .glyph { font-size: 1.1em; opacity: 0.65; flex: 0 0 auto; }
+.answer.a0 { background: var(--sky-soft); }
+.answer.a1 { background: var(--coral-soft); }
+.answer.a2 { background: var(--gold-soft); }
+.answer.a3 { background: var(--mint-soft); }
+.answer:active, .answer.pressed { transform: translateY(5px); box-shadow: 0 1px 0 rgba(8,5,32,.35); }
+.answer.locked { outline: 4px solid #fff; transform: translateY(4px); box-shadow: 0 2px 0 rgba(8,5,32,.35); }
+/* Falsche Karten sacken ab, ohne die Avatare mitzunehmen: Wer danebenlag,
+   ist der interessanteste Teil der Auflösung — Opazität auf der Karte würde
+   genau das unsichtbar machen. */
+.answer.dim {
+  background: rgba(255, 255, 255, 0.13); color: var(--muted);
+  box-shadow: 0 4px 0 rgba(8, 5, 32, 0.25);
+}
+.answer.dim .glyph { opacity: 0.45; }
+.answer.right { outline: 5px solid var(--mint); animation: pop 500ms cubic-bezier(.2,1.6,.4,1); z-index: 2; }
+.answer.wrongpick { outline: 5px solid var(--coral); }
+
+/* ---------------------------------------------------------- Timer */
+
+.timer {
+  --pct: 100;
+  width: 2.4em; height: 2.4em; border-radius: 50%;
+  display: grid; place-items: center;
+  font-family: var(--font-display); font-weight: 800; font-size: 1rem;
+  background: conic-gradient(var(--accent) calc(var(--pct) * 1%), rgba(255,255,255,.12) 0);
+  color: #fff; position: relative;
+}
+.timer::after {
+  content: ''; position: absolute; inset: 5px; border-radius: 50%;
+  background: rgba(20, 16, 46, 0.85);
+}
+.timer span { position: relative; z-index: 1; }
+.timer.urgent { animation: pulseRing 700ms ease-in-out infinite; }
+
+.bar { height: 7px; border-radius: 999px; background: rgba(255,255,255,.14); overflow: hidden; }
+.bar > i { display: block; height: 100%; background: var(--accent); border-radius: 999px; transition: width 200ms linear; }
+.bar.urgent > i { background: var(--coral); }
+
+/* ---------------------------------------------------------- Moderator */
+
+.moderator {
+  display: flex; align-items: center; gap: 0.8rem;
+  background: rgba(255,255,255,.06); border: 1px solid var(--line);
+  border-left: 5px solid var(--gold); border-radius: var(--r-sm);
+  padding: 0.7rem 1.1rem; max-width: 70ch;
+}
+.moderator .who { font-size: 1.6rem; flex: 0 0 auto; }
+.moderator .said { font-family: var(--font-display); font-weight: 600; }
+
+/* ---------------------------------------------------------- Chat */
+
+.chat-line { display: flex; align-items: baseline; gap: 0.45em; }
+.chat-line .nick { font-family: var(--font-display); font-weight: 700; color: var(--accent-soft); }
+.chat-line.ghost { opacity: 0.7; font-style: italic; }
+.chat-line.ghost .nick::before { content: '👻 '; }
+
+/* ---------------------------------------------------------- Rücksicht */
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .bg .orb, .bg .glyph { animation: none !important; }
+}

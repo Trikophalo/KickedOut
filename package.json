@@ -1,0 +1,21 @@
+{
+  "name": "kicked-out",
+  "version": "1.0.0",
+  "description": "KICKED OUT — Browser-Partyquiz für 4–9 echte Menschen. Großer Screen als Bühne, Smartphones als Buzzer.",
+  "type": "module",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "check": "node --check server/index.js && node scripts/selftest.js",
+    "test": "node scripts/selftest.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "license": "MIT",
+  "private": true
+}

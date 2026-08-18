@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>KICKED OUT — Controller</title>
+<meta name="theme-color" content="#1E1B4B">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎮</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito+Sans:wght@400;600;700;800&display=swap">
+<link rel="stylesheet" href="/css/base.css">
+<link rel="stylesheet" href="/css/controller.css">
+</head>
+<body>
+<div class="bg" aria-hidden="true">
+  <div class="orb o1"></div><div class="orb o2"></div><div class="orb o3"></div>
+</div>
+<canvas id="fx" aria-hidden="true"></canvas>
+
+<div class="ctl">
+  <header class="ctl-top" id="ctlTop" hidden>
+    <div class="me" id="meBox"></div>
+    <div class="hudmini">
+      <span class="pot" id="pot">🪙 0</span>
+      <span class="chip" id="chainChip">×1</span>
+    </div>
+  </header>
+
+  <main class="ctl-main" id="main"></main>
+
+  <footer class="ctl-foot" id="foot" hidden>
+    <form class="chatbar" id="chatbar" autocomplete="off">
+      <input class="field" id="chatInput" maxlength="160" placeholder="Sagen, was Sache ist …" aria-label="Chat">
+      <button class="btn ghost" type="submit" aria-label="Senden">➤</button>
+    </form>
+    <div class="emojis" id="emojis"></div>
+  </footer>
+</div>
+
+<div class="flash" id="flash" hidden></div>
+
+<script type="module" src="/js/controller.js"></script>
+</body>
+</html>

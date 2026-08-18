@@ -1,0 +1,138 @@
+// Zentrale Spielbalance. Alles, was am Spielgefühl schraubt, steht hier —
+// nicht verteilt über die Zustandsmaschine.
+
+/**
+ * Zeitraffer für Entwicklung und Tests: KO_TIME_SCALE=0.02 spielt eine
+ * komplette Partie in Sekunden durch. Im Normalbetrieb 1.
+ */
+export const TIME_SCALE = (() => {
+  const raw = Number(process.env.KO_TIME_SCALE);
+  return Number.isFinite(raw) && raw > 0 ? raw : 1;
+})();
+
+export const CONFIG = {
+  minPlayers: 4,
+  maxPlayers: 9,
+  questionsPerRound: 7,
+  maxRounds: 5,
+  chainMax: 5,
+
+  // Punktwerte und Schwierigkeits-Mix je Runde (Werte-Rampe aus dem Konzept §1.3).
+  rounds: [
+    { value: { leicht: 100, mittel: 150, schwer: 200 }, mix: { leicht: 0.7, mittel: 0.25, schwer: 0.05 }, time: 10 },
+    { value: { leicht: 150, mittel: 200, schwer: 300 }, mix: { leicht: 0.55, mittel: 0.35, schwer: 0.1 }, time: 10 },
+    { value: { leicht: 200, mittel: 300, schwer: 400 }, mix: { leicht: 0.4, mittel: 0.4, schwer: 0.2 }, time: 9 },
+    { value: { leicht: 250, mittel: 400, schwer: 550 }, mix: { leicht: 0.25, mittel: 0.45, schwer: 0.3 }, time: 8 },
+    { value: { leicht: 300, mittel: 500, schwer: 700 }, mix: { leicht: 0.15, mittel: 0.45, schwer: 0.4 }, time: 8 },
+  ],
+
+  // Tempo-Regler der Lobby skaliert den Antwort-Timer.
+  pace: {
+    blitz: { factor: 0.5, label: 'Blitz' },
+    standard: { factor: 1, label: 'Standard' },
+    gemuetlich: { factor: 1.5, label: 'Gemütlich' },
+  },
+
+  // Dauer der inszenierten Phasen in Millisekunden.
+  // Diese Zahlen sind Choreografie, keine Technik — sie bestimmen das Drama.
+  timing: {
+    intro: 5600,
+    roundIntro: 4600,
+    reveal: 4800,
+    roundEnd: 4600,
+    voting: 45000,
+    voteReveal: 10500,
+    tiebreak: 22000,
+    tiebreakReveal: 5600,
+    elimination: 9800,
+    finalIntro: 7000,
+    finalDraft: 12000,
+    finalQuestion: 10000,
+    finalReveal: 5400,
+    // Nachlauf, nachdem alle geantwortet haben — verhindert, dass ein
+    // Schnellklicker die Frage für alle anderen abwürgt.
+    answerGrace: 900,
+  },
+
+  finale: {
+    winScore: 3,
+    maxQuestions: 7,
+    draftOptions: 3,
+  },
+
+  chat: {
+    maxLength: 160,
+    rateMs: 1500,
+    historyForNewcomers: 25,
+    emojiRateMs: 700,
+  },
+
+  vote: {
+    reasonMin: 3,
+    reasonMax: 100,
+  },
+
+  nick: { min: 2, max: 12 },
+
+  // Verwaiste Räume werden nach dieser Zeit ohne Verbindung abgeräumt.
+  roomTtlMs: 1000 * 60 * 60 * 3,
+  disconnectGraceMs: 1000 * 60 * 8,
+};
+
+// Schnell-Chips für die Pflicht-Begründung. Der Server rotiert daraus,
+// damit nicht jede Runde dieselben fünf Textbausteine erscheinen.
+export const REASON_CHIPS = [
+  'Kettenbrecher!',
+  'Zu langsam …',
+  'Zu stark — Finalgefahr',
+  'Reine Sympathiefrage',
+  'Hauptstadt-Legasthenie',
+  'Rät nur noch',
+  'War heute nicht da',
+  'Zu ruhig im Chat',
+  'Physik ist nicht deins',
+  'Bauchgefühl',
+  'Du weißt, was du getan hast',
+  'Platz machen für Bessere',
+  'Statistisch überfällig',
+  'Der Pott hat gelitten',
+  'Zu selbstsicher',
+  'Alphabetische Reihenfolge',
+];
+
+export const CATEGORIES = {
+  allgemeinwissen: { label: 'Allgemeinwissen', icon: '🧠' },
+  wissenschaft: { label: 'Wissenschaft', icon: '🔬' },
+  geografie: { label: 'Geografie', icon: '🌍' },
+};
+
+export const DIFFICULTIES = ['leicht', 'mittel', 'schwer'];
+
+/**
+ * Rausschmiss-Plan: wie viele Spieler pro Runde fliegen.
+ * Ziel laut Konzept: eine Session bleibt bei 25–40 Minuten, auch bei 9 Leuten.
+ * Bei 8/9 Spielern werden darum die ersten Runden zu Doppelrausschmissen.
+ */
+export function eliminationPlan(playerCount) {
+  const needed = Math.max(0, playerCount - 2);
+  const rounds = Math.min(CONFIG.maxRounds, needed);
+  const doubles = Math.max(0, needed - rounds);
+  const plan = [];
+  for (let i = 0; i < rounds; i++) plan.push(i < doubles ? 2 : 1);
+  return plan;
+}
+
+export function roundSpec(round) {
+  return CONFIG.rounds[Math.min(round, CONFIG.rounds.length) - 1];
+}
+
+export function answerTimeMs(round, pace) {
+  const spec = roundSpec(round);
+  const factor = (CONFIG.pace[pace] || CONFIG.pace.standard).factor;
+  return scaled(spec.time * factor * 1000);
+}
+
+/** Skaliert eine Choreografie-Dauer mit dem Zeitraffer. */
+export function scaled(ms) {
+  return Math.max(30, Math.round(ms * TIME_SCALE));
+}

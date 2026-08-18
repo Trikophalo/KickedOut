@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>KICKED OUT — Bühne</title>
+<meta name="theme-color" content="#1E1B4B">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📺</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito+Sans:wght@400;600;700;800&display=swap">
+<link rel="stylesheet" href="/css/base.css">
+<link rel="stylesheet" href="/css/stage.css">
+</head>
+<body>
+<div class="bg" aria-hidden="true">
+  <div class="orb o1"></div><div class="orb o2"></div><div class="orb o3"></div>
+  <span class="glyph" style="top:12%;left:5%;font-size:7rem">?</span>
+  <span class="glyph" style="top:64%;left:10%;font-size:4rem;animation-delay:-8s">⛓</span>
+  <span class="glyph" style="top:20%;right:7%;font-size:5.5rem;animation-delay:-14s">?</span>
+  <span class="glyph" style="top:72%;right:12%;font-size:6rem;animation-delay:-4s">✈</span>
+</div>
+<canvas id="fx" aria-hidden="true"></canvas>
+
+<div class="stage" id="stage">
+  <header class="hud">
+    <div class="hud-left">
+      <span class="pot" id="pot">🪙 0</span>
+      <span class="chain" id="chain" title="Ketten-Multiplikator"></span>
+      <span class="chip" id="chainLabel">×1</span>
+    </div>
+    <div class="hud-right">
+      <span class="chip" id="roundChip">Lobby</span>
+      <span class="chip" id="catChip" hidden></span>
+      <span class="timer" id="timer" hidden><span>–</span></span>
+      <span class="code" id="codeChip"></span>
+    </div>
+  </header>
+
+  <main class="scene" id="scene"></main>
+
+  <footer class="rail">
+    <div class="players" id="players"></div>
+    <div class="ticker" id="ticker" aria-live="polite"></div>
+  </footer>
+</div>
+
+<div class="moderator-slot" id="modSlot" style="position:fixed;left:0;right:0;bottom:clamp(4.2rem,10vh,6rem);pointer-events:none;z-index:5"></div>
+
+<div class="sound-hint" id="soundHint">
+  <div style="max-width:34ch">
+    <h1 class="headline">KICKED OUT</h1>
+    <p class="subline" style="margin:.8rem 0 1.4rem">
+      Diese Bühne braucht Ton — Musik, Kettenbrüche und die Sieger-Fanfare gehören dazu.
+    </p>
+    <button class="btn big" id="soundStart">Bühne öffnen 🔊</button>
+  </div>
+</div>
+
+<script type="module" src="/js/stage.js"></script>
+</body>
+</html>

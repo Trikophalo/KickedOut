@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>KICKED OUT — Der Dümmste fliegt</title>
+<meta name="description" content="Browser-Partyquiz für 4–9 echte Menschen. Großer Screen als Bühne, Smartphones als Buzzer.">
+<meta name="theme-color" content="#1E1B4B">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚪</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito+Sans:wght@400;600;700;800&display=swap">
+<link rel="stylesheet" href="/css/base.css">
+<style>
+  body { overflow: auto; }
+  .landing {
+    position: relative; z-index: 1; min-height: 100dvh;
+    display: grid; place-items: center; padding: 2rem 1.2rem;
+  }
+  .panel { width: min(100%, 620px); text-align: center; display: grid; gap: 1.6rem; }
+  .logo {
+    font-family: var(--font-display); font-weight: 800;
+    font-size: clamp(3rem, 13vw, 6rem); line-height: 0.95;
+    color: #fff; text-shadow: 0 7px 0 rgba(8,5,32,.55);
+  }
+  .logo .out { color: var(--gold); }
+  .tag { color: var(--muted); font-family: var(--font-display); font-weight: 600; font-size: clamp(1rem, 3.5vw, 1.3rem); }
+  .stamp {
+    display: inline-block; font-family: var(--font-display); font-weight: 800;
+    font-size: clamp(.9rem, 3.4vw, 1.2rem); letter-spacing: .08em; color: var(--coral);
+    border: 4px solid var(--coral); border-radius: 12px; padding: .1em .7em;
+    transform: rotate(-7deg);
+  }
+  .box {
+    background: rgba(255,255,255,.06); border: 1px solid var(--line);
+    border-radius: var(--r); padding: 1.4rem; display: grid; gap: .9rem;
+  }
+  .box h2 { font-size: 1.15rem; }
+  .box p { color: var(--muted); font-size: .92rem; }
+  .codeinput {
+    font-family: var(--font-display); font-weight: 800;
+    font-size: clamp(2rem, 9vw, 3rem); letter-spacing: .35em;
+    text-align: center; text-transform: uppercase; padding: .35em .2em .35em .55em;
+  }
+  .sep { display: flex; align-items: center; gap: 1rem; color: var(--muted); font-size: .85rem; }
+  .sep::before, .sep::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+  .how { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .7rem; text-align: left; }
+  .how div { background: rgba(255,255,255,.04); border: 1px solid var(--line); border-radius: var(--r-sm); padding: .7rem .9rem; }
+  .how b { font-family: var(--font-display); color: var(--gold); display: block; font-size: .95rem; }
+  .how span { font-size: .84rem; color: var(--muted); }
+  footer { color: var(--muted); font-size: .8rem; }
+  footer a { color: var(--sky); }
+</style>
+</head>
+<body>
+<div class="bg" aria-hidden="true">
+  <div class="orb o1"></div><div class="orb o2"></div><div class="orb o3"></div>
+  <span class="glyph" style="top:10%;left:6%;font-size:5rem">?</span>
+  <span class="glyph" style="top:62%;left:11%;font-size:3.2rem;animation-delay:-8s">✈</span>
+  <span class="glyph" style="top:24%;right:8%;font-size:4.2rem;animation-delay:-14s">?</span>
+</div>
+<canvas id="fx" aria-hidden="true"></canvas>
+
+<main class="landing">
+  <div class="panel">
+    <div>
+      <h1 class="logo">KICKED <span class="out">OUT</span></h1>
+      <p class="tag">Der Dümmste fliegt — für 4 bis 9 echte Menschen</p>
+      <p style="margin-top:.8rem"><span class="stamp">DU FLIEGST!</span></p>
+    </div>
+
+    <form class="box" id="joinForm" autocomplete="off">
+      <h2>Mitspielen</h2>
+      <p>Der Raum-Code steht auf dem großen Screen.</p>
+      <input class="field codeinput" id="code" maxlength="4" inputmode="latin"
+             autocapitalize="characters" placeholder="CODE" aria-label="Raum-Code">
+      <button class="btn big block" type="submit">Los geht's</button>
+    </form>
+
+    <div class="sep">oder</div>
+
+    <div class="box">
+      <h2>Bühne öffnen</h2>
+      <p>Auf dem Gerät, das alle sehen: Fernseher, Beamer oder Laptop. Dort erscheint der Raum-Code.</p>
+      <a class="btn sky big block" href="/host">Bühne starten 📺</a>
+    </div>
+
+    <div class="how">
+      <div><b>1. Bühne</b><span>Ein Gerät zeigt das Spiel für alle.</span></div>
+      <div><b>2. Handys</b><span>Alle scannen den QR-Code oder tippen den Raum-Code.</span></div>
+      <div><b>3. Rauswurf</b><span>Nach jeder Runde fliegt jemand. Anonym gewählt, mit Begründung.</span></div>
+    </div>
+
+    <footer>
+      Kein Download, keine Accounts. <a href="/api/health">Serverstatus</a>
+    </footer>
+  </div>
+</main>
+
+<script type="module">
+  import { fx } from '/js/fx.js';
+  fx.mount(document.getElementById('fx'));
+
+  const input = document.getElementById('code');
+  input.addEventListener('input', () => {
+    input.value = input.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 4);
+  });
+  document.getElementById('joinForm').addEventListener('submit', (event) => {
+    event.preventDefault();
+    const code = input.value.trim();
+    if (code.length !== 4) {
+      input.focus();
+      input.animate(
+        [{ transform: 'translateX(0)' }, { transform: 'translateX(-9px)' },
+         { transform: 'translateX(9px)' }, { transform: 'translateX(0)' }],
+        { duration: 320 },
+      );
+      return;
+    }
+    location.href = `/join/${code}`;
+  });
+  input.focus();
+</script>
+</body>
+</html>
