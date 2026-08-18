@@ -64,8 +64,11 @@ async function main() {
 
   const shot = async (page, name) => {
     const path = join(SHOTS, `${name}.${JPEG ? 'jpg' : 'png'}`);
-    await page.screenshot({ path });
-    shots.push(path);
+    // Ein verlorenes Fenster ist ein eigener Befund — kein Grund, den
+    // Test mitten im Bild abbrechen zu lassen.
+    const ok = await page.screenshot({ path }).then(() => true, () => false);
+    if (ok) shots.push(path);
+    else problems.push(`Screenshot "${name}" ging nicht mehr`);
   };
 
   const desktop = () => browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: JPEG ? 1 : 2 });
@@ -142,10 +145,30 @@ async function main() {
   let sawGhost = false;
   let sawChat = false;
 
+  // Verliert der Test unterwegs seinen Browser, soll er das als Befund
+  // melden — und nicht als nackte Ausnahme mitten in der Schleife sterben.
+  let lost = null;
+  const label = (i) => (i === 0 ? 'Bühne' : names[i - 1]);
+  browser.on('disconnected', () => { lost ??= 'Chromium hat sich beendet'; });
+  [stage, ...phones].forEach((page, i) => {
+    page.on('close', () => { lost ??= `Seite "${label(i)}" wurde geschlossen`; });
+    page.on('crash', () => { lost = `Seite "${label(i)}" ist abgestürzt`; });
+  });
+
   // Eine Partie mit Blitz-Stechen braucht auch im Zeitraffer mehrere Minuten.
-  const deadline = Date.now() + 420000;
+  const started = Date.now();
+  const since = () => `${((Date.now() - started) / 1000).toFixed(0)}s`.padStart(5);
+  const deadline = started + 480000;
+  let phase = null;
   while (Date.now() < deadline) {
-    const phase = await stage.evaluate(() => document.body.dataset.phase);
+    const seen = await stage
+      .evaluate(() => document.body.dataset.phase)
+      .catch((err) => { lost ??= err.message.split('\n')[0]; return null; });
+    if (seen === null) break;
+    // Der Phasenverlauf ist die Landkarte: bleibt der Test hängen, steht
+    // hier schwarz auf weiß, wo und seit wann.
+    if (seen !== phase) console.log(`  ${since()}  ${seen}`);
+    phase = seen;
 
     if (phase === 'question' || phase === 'final_question') {
       if (!sawQuestion) {
@@ -155,10 +178,12 @@ async function main() {
         sawQuestion = true;
       }
       for (const [index, page] of phones.entries()) {
-        const question = await page.evaluate(() => document.querySelector('.qtext')?.textContent || '');
+        const question = await page
+          .evaluate(() => document.querySelector('.qtext')?.textContent || '')
+          .catch(() => '');
         const key = `${index}:${phase}:${question}`;
         if (!question || answered.has(key)) continue;
-        const field = await page.$('#answerField:not([disabled])');
+        const field = await page.$('#answerField:not([disabled])').catch(() => null);
         if (!field) continue;
         // Frei getippter Unsinn — genau der Stoff, aus dem der Stimmzettel wird.
         const silly = ['Banane', 'Keine Ahnung', 'Dein Vater', '42', 'Käse', 'Ottokar'];
@@ -183,7 +208,7 @@ async function main() {
       for (const page of phones) {
         const status = await page.textContent('#voteStatus').catch(() => null);
         if (status === null || status.includes('Stimme ist drin')) continue;
-        const cards = await page.$$('.answercard:not([disabled])');
+        const cards = await page.$('.answercard:not([disabled])').catch(() => []);
         if (!cards.length) continue;
         await cards[Math.floor(Math.random() * cards.length)].click().catch(() => {});
       }
@@ -204,7 +229,7 @@ async function main() {
     // sehen auch Geister die Auswertung, dort wäre nichts mehr zu finden.
     if (!sawGhost && ['round_intro', 'question'].includes(phase)) {
       for (const page of phones) {
-        if (await page.$('.ghostbox')) {
+        if (await page.$('.ghostbox').catch(() => null)) {
           await shot(page, '14-pc-geist');
           sawGhost = true;
           break;
@@ -215,9 +240,9 @@ async function main() {
     // Chat und Emoji-Regen einmal auslösen — beides läuft über eigene
     // Nachrichtenwege und wird sonst nie angefasst.
     if (!sawChat && phase === 'round_intro') {
-      await phones[1].fill('#chatInput', 'Das war Absicht.');
-      await phones[1].click('#chatbar button');
-      await phones[2].click('#emojis button');
+      await phones[1].fill('#chatInput', 'Das war Absicht.').catch(() => {});
+      await phones[1].click('#chatbar button').catch(() => {});
+      await phones[2].click('#emojis button').catch(() => {});
       sawChat = true;
     }
 
@@ -227,7 +252,7 @@ async function main() {
         // daran erkennt der Test, dass hier nichts mehr zu tun ist.
         const done = await page.textContent('#guessStatus').catch(() => null);
         if (done === null || done.startsWith('Getippt')) continue;
-        const input = await page.$('input[inputmode="decimal"]');
+        const input = await page.$('input[inputmode="decimal"]').catch(() => null);
         if (!input) continue;
         await input.fill(String(100 + Math.floor(Math.random() * 900))).catch(() => {});
         await page.click('button:has-text("Tippen")').catch(() => {});
@@ -242,7 +267,7 @@ async function main() {
 
     if (phase === 'final_draft') {
       for (const page of phones) {
-        const cards = await page.$$('.cand');
+        const cards = await page.$('.cand').catch(() => []);
         if (cards.length) await cards[0].click().catch(() => {});
       }
     }
@@ -257,17 +282,17 @@ async function main() {
     await sleep(280);
   }
 
-  const finalPhase = await stage.evaluate(() => document.body.dataset.phase);
-  if (finalPhase !== 'results') problems.push(`Das Spiel endete nicht im Ergebnis-Screen (Phase: ${finalPhase})`);
+  if (lost) problems.push(`Der Test verlor seine Fenster nach ${since().trim()}: ${lost}`);
+  if (phase !== 'results') problems.push(`Das Spiel endete nicht im Ergebnis-Screen (Phase: ${phase}, nach ${since().trim()})`);
 
   // Falls die Geisterzone im Spielverlauf nie erwischt wurde, hier nachholen.
-  if (!sawGhost) {
+  if (!sawGhost && !lost) {
     for (const page of phones) {
-      if (await page.$('.ghostbox')) { await shot(page, '14-pc-geist'); break; }
+      if (await page.$('.ghostbox').catch(() => null)) { await shot(page, '14-pc-geist'); break; }
     }
   }
 
-  await browser.close();
+  await browser.close().catch(() => {});
   server.kill('SIGTERM');
   await rm(dataDir, { recursive: true, force: true }).catch(() => {});
 
@@ -277,6 +302,11 @@ async function main() {
   if (problems.length) {
     console.log('\n  Probleme:');
     for (const p of [...new Set(problems)]) console.log(`    ✗ ${p}`);
+    const tail = log.trim().split('\n').filter(Boolean).slice(-12);
+    if (tail.length) {
+      console.log('\n  Server zuletzt:');
+      for (const line of tail) console.log(`    ${line}`);
+    }
     process.exit(1);
   }
   console.log('\n  Keine Konsolenfehler, keine Ausnahmen. Partie komplett durchgespielt.\n');
