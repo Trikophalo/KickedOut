@@ -383,7 +383,7 @@ const SCREENS = {
       tb.question.unit ? el('p', { style: { textAlign: 'center', color: 'var(--muted)' } }, `Angabe in ${tb.question.unit}`) : null,
       input,
       el('button', {
-        class: 'btn gold big block',
+        class: 'btn big block',
         onclick: (e) => {
           if (!input.value.trim()) return toast('Eine Zahl brauchst du schon.', 'error');
           press(e.currentTarget);

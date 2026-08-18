@@ -1003,8 +1003,13 @@ export class Room {
     this.final = null;
     this.results = null;
     this.batch = null;
+    this.plan = [];
+    this.eliminated = null;
+    this.roundQuestions = [];
+    this.questionIndex = 0;
     this.moments = [];
     this.chatBuffer = [];
+    this.usedEstimates = new Set();
     for (const player of this.players.values()) {
       player.alive = true;
       player.ready = false;

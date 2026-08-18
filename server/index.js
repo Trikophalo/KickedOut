@@ -112,7 +112,6 @@ class Connection {
     this.room = null;
     this.playerId = null;
     this.role = null;
-    this.alive = true;
   }
 
   send(payload) {

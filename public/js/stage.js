@@ -165,14 +165,17 @@ function keyFor(s) {
 }
 
 function updateHud() {
+  // Der Pott rattert hoch, statt zu springen — das Münz-Geratter aus der
+  // Trigger-Matrix hängt genau an dieser Bewegung.
   const pot = $('#pot');
-  pot.textContent = `🪙 ${state.pot.toLocaleString('de-DE')}`;
+  const potNum = $('#potNum');
   if (state.pot !== lastPot) {
-    countUp(pot, lastPot, state.pot, 800);
-    pot.textContent = `🪙 ${state.pot.toLocaleString('de-DE')}`;
+    countUp(potNum, lastPot, state.pot, 800);
     pot.classList.add('bump');
     setTimeout(() => pot.classList.remove('bump'), 400);
     lastPot = state.pot;
+  } else {
+    potNum.textContent = state.pot.toLocaleString('de-DE');
   }
 
   // Multiplikator ×1 heißt: noch kein Glied geschmiedet. Bei chainMax 5

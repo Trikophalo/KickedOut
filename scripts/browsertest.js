@@ -115,12 +115,23 @@ async function main() {
   let sawVoting = false;
   let sawElimination = false;
   let sawFinale = false;
+  let sawGhost = false;
+  let sawChat = false;
 
-  const deadline = Date.now() + 240000;
+  // Eine Partie mit Blitz-Stechen braucht auch im Zeitraffer mehrere Minuten.
+  const deadline = Date.now() + 420000;
   while (Date.now() < deadline) {
     const phase = await stage.evaluate(() => document.body.dataset.phase);
 
     if (phase === 'question' || phase === 'final_question') {
+      // Auch hier erst fotografieren: Sobald alle geantwortet haben, blendet
+      // der Controller sein persönliches Ergebnis vollflächig ein.
+      if (!sawQuestion) {
+        await sleep(400);
+        await shot(stage, '04-buehne-frage');
+        await shot(phones[0], '05-controller-frage');
+        sawQuestion = true;
+      }
       for (const [index, page] of phones.entries()) {
         // Alle Handys liegen unter derselben URL — der Schlüssel muss darum
         // den Spieler enthalten, sonst antwortet nur das erste Gerät.
@@ -133,12 +144,6 @@ async function main() {
           answered.add(key);
         }
       }
-      if (!sawQuestion) {
-        await sleep(500);
-        await shot(stage, '04-buehne-frage');
-        await shot(phones[0], '05-controller-frage');
-        sawQuestion = true;
-      }
     }
 
     if (phase === 'reveal' && sawQuestion && !shots.some((s) => s.includes('06-'))) {
@@ -147,6 +152,14 @@ async function main() {
     }
 
     if (phase === 'voting') {
+      // Erst fotografieren, dann abstimmen: Sobald alle Stimmen drin sind,
+      // zieht der Server nach gut einer Sekunde weiter.
+      if (!sawVoting) {
+        await sleep(400);
+        await shot(stage, '07-buehne-voting');
+        await shot(phones[2], '08-controller-voting');
+        sawVoting = true;
+      }
       for (const page of phones) {
         // Der Controller sagt selbst, ob die Stimme schon draußen ist —
         // damit braucht es keine Runden-Buchführung im Test.
@@ -159,12 +172,6 @@ async function main() {
         if (chips.length) await chips[Math.floor(Math.random() * chips.length)].click().catch(() => {});
         const send = await page.$('#sendVote');
         if (send && await send.isEnabled()) await send.click().catch(() => {});
-      }
-      if (!sawVoting) {
-        await sleep(400);
-        await shot(stage, '07-buehne-voting');
-        await shot(phones[2], '08-controller-voting');
-        sawVoting = true;
       }
     }
 
@@ -179,13 +186,37 @@ async function main() {
       sawElimination = true;
     }
 
+    // Die Geisterzone gibt es nur während des Spiels — im Ergebnis-Screen
+    // sehen auch Geister die Auswertung, dort wäre nichts mehr zu finden.
+    if (!sawGhost && ['round_intro', 'question'].includes(phase)) {
+      for (const page of phones) {
+        if (await page.$('.ghostbox')) {
+          await shot(page, '14-controller-geist');
+          sawGhost = true;
+          break;
+        }
+      }
+    }
+
+    // Chat und Emoji-Regen einmal auslösen — beides läuft über eigene
+    // Nachrichtenwege und wird sonst nie angefasst.
+    if (!sawChat && phase === 'round_intro') {
+      await phones[1].fill('#chatInput', 'Das war Absicht.');
+      await phones[1].click('#chatbar button');
+      await phones[2].click('#emojis button');
+      sawChat = true;
+    }
+
     if (phase === 'tiebreak') {
       for (const page of phones) {
+        // Nach dem Tippen meldet der Controller den eigenen Wert zurück —
+        // daran erkennt der Test, dass hier nichts mehr zu tun ist.
+        const done = await page.textContent('#guessStatus').catch(() => null);
+        if (done === null || done.startsWith('Getippt')) continue;
         const input = await page.$('input[inputmode="decimal"]');
-        if (input) {
-          await input.fill(String(100 + Math.floor(Math.random() * 900))).catch(() => {});
-          await page.click('button:has-text("Tippen")').catch(() => {});
-        }
+        if (!input) continue;
+        await input.fill(String(100 + Math.floor(Math.random() * 900))).catch(() => {});
+        await page.click('button:has-text("Tippen")').catch(() => {});
       }
     }
 
@@ -215,9 +246,11 @@ async function main() {
   const finalPhase = await stage.evaluate(() => document.body.dataset.phase);
   if (finalPhase !== 'results') problems.push(`Das Spiel endete nicht im Ergebnis-Screen (Phase: ${finalPhase})`);
 
-  // Geisterzone auf einem rausgeflogenen Handy prüfen.
-  for (const page of phones) {
-    if (await page.$('.ghostbox')) { await shot(page, '14-controller-geist'); break; }
+  // Falls die Geisterzone im Spielverlauf nie erwischt wurde, hier nachholen.
+  if (!sawGhost) {
+    for (const page of phones) {
+      if (await page.$('.ghostbox')) { await shot(page, '14-controller-geist'); break; }
+    }
   }
 
   await browser.close();

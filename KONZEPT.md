@@ -1,6 +1,8 @@
 # KICKED OUT — Der Dümmste fliegt
 
-**Konzept- & Umsetzungsdokument · Version 1.0 · Stand: 18.08.2026 · Status: Konzeptphase, zur Diskussion**
+**Konzept- & Umsetzungsdokument · Version 1.0 · Stand: 18.08.2026**
+
+> **Das Spiel ist gebaut.** Dieses Dokument beschreibt den Entwurf; die lauffähige Umsetzung liegt im selben Repository. `npm install && npm start`, dann die Bühne auf `/host` öffnen — siehe [README.md](./README.md). Der Umsetzungsstand entspricht dem MVP aus §7 plus Teilen von V1; was noch offen ist, steht im README.
 
 Ein Browser-Partyquiz für 4–9 echte Menschen in Echtzeit. Ein großer, gemeinsamer Screen (TV/Beamer/Laptop) zeigt die Show, jedes Smartphone wird zum persönlichen Buzzer. Richtige Antworten füllen den gemeinsamen Pott, falsche lassen die Kette gefrieren — und nach jeder Runde entscheidet ein anonymes Voting mit Pflicht-Begründung, wer fliegt. Kein Download, keine Accounts, keine KI-Mitspieler. Nur ein bissiger KI-Moderator, der die Rauswürfe kommentiert.
 
