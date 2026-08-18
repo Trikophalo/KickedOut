@@ -637,7 +637,7 @@ function syncAnswers() {
     wall.replaceChildren(...pool.map((p) => el('div', { class: `typer${p.answered ? ' done' : ''}` },
       avatarEl(p, { size: 46 }),
       el('span', { class: 'name' }, p.nick),
-      el('span', { class: 'state' }, p.answered ? '✓ getippt' : '✍️ …'))));
+      el('span', { class: 'state' }, p.answered ? '✓ abgeschickt' : '✍️ tippt …'))));
     return;
   }
 

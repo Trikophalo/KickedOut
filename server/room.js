@@ -299,23 +299,40 @@ export class Room {
     if (!player || !player.alive || !ANSWER_PHASES.has(this.phase) || !this.current) return;
     if (this.phase === PHASES.FINAL_QUESTION && !this.final?.players.includes(player.id)) return;
 
-    const text = cleanText(msg.text, CONFIG.answer.maxLength);
-    if (!text) return;
+    // Ein abgeschicktes Wort steht. Sonst endete die Frage, während jemand
+    // noch daran herumbessert.
+    if (player.answer?.locked) return;
 
-    const first = !player.answer;
-    // Nachbessern bleibt bis zum Timer-Ende erlaubt; gezählt wird der Moment
-    // der ersten Eingabe, sonst würde Korrigieren den Schnelligkeitsbonus fressen.
+    const text = cleanText(msg.text, CONFIG.answer.maxLength);
+    const lock = msg.lock === true;
+    // Abschicken braucht Inhalt; als Entwurf darf leer sein, damit man das
+    // Feld auch wieder leeren kann.
+    if (lock && !text) return;
+
     player.answer = {
       text,
       at: now(),
-      ms: first ? now() - this.questionStartedAt : player.answer.ms,
+      locked: lock,
+      // Gezählt wird der Moment des Abschickens. Wer bis zum Timer tippt,
+      // gilt als langsamster — sein Text zählt trotzdem.
+      ms: lock ? now() - this.questionStartedAt : null,
     };
     this.broadcast();
 
-    const pending = this.answerPool().filter((p) => !p.answer);
-    if (!pending.length && first) {
+    // Erst wenn alle abgeschickt haben, ist die Frage durch.
+    if (!lock) return;
+    const pending = this.answerPool().filter((p) => !p.answer?.locked);
+    if (!pending.length) {
       this.setPhaseTimer(Math.min(CONFIG.timing.answerGrace, this.remainingMs()));
     }
+  }
+
+  /**
+   * Wie lange jemand gebraucht hat. Wer nie abgeschickt hat, bekommt die
+   * volle Zeit angerechnet — schneller war er nachweislich nicht.
+   */
+  answerMs(player) {
+    return player.answer?.ms ?? (now() - this.questionStartedAt);
   }
 
   onVote(player, msg) {
@@ -597,15 +614,19 @@ export class Room {
     for (const player of pool) {
       const text = player.answer?.text ?? '';
       const verdict = grade(text, q);
-      perPlayer[player.id] = { text, correct: verdict.correct, empty: verdict.empty, ms: player.answer?.ms ?? null };
+      perPlayer[player.id] = {
+        text, correct: verdict.correct, empty: verdict.empty,
+        ms: player.answer ? this.answerMs(player) : null,
+      };
 
       player.answered++;
       player.roundAnswered++;
       if (verdict.correct) {
         player.correct++;
         player.roundCorrect++;
-        player.correctMs += player.answer.ms;
-        player.fastestMs = player.fastestMs ? Math.min(player.fastestMs, player.answer.ms) : player.answer.ms;
+        const ms = this.answerMs(player);
+        player.correctMs += ms;
+        player.fastestMs = player.fastestMs ? Math.min(player.fastestMs, ms) : ms;
         player.contributed += q.value * chainBefore;
         correctIds.push(player.id);
       } else {
@@ -1000,11 +1021,12 @@ export class Room {
       player.answered++;
       if (verdict.correct) {
         player.correct++;
-        player.correctMs += player.answer.ms;
-        player.fastestMs = player.fastestMs ? Math.min(player.fastestMs, player.answer.ms) : player.answer.ms;
+        const ms = this.answerMs(player);
+        player.correctMs += ms;
+        player.fastestMs = player.fastestMs ? Math.min(player.fastestMs, ms) : ms;
         player.contributed += q.value;
       }
-      return { right: verdict.correct, ms: player.answer?.ms ?? Infinity, text, empty: verdict.empty };
+      return { right: verdict.correct, ms: player.answer ? this.answerMs(player) : Infinity, text, empty: verdict.empty };
     };
 
     const ra = evaluate(a);
@@ -1193,7 +1215,8 @@ export class Room {
       ready: player.ready,
       alive: player.alive,
       eliminatedRound: player.eliminatedRound,
-      answered: Boolean(player.answer),
+      // „Fertig“ heißt abgeschickt — nicht „tippt gerade“.
+      answered: Boolean(player.answer?.locked),
       voted: Boolean(player.vote),
       guessed: player.guess != null,
       correct: player.correct,
@@ -1299,6 +1322,7 @@ export class Room {
         alive: viewer.alive,
         ready: viewer.ready,
         answer: viewer.answer?.text ?? '',
+        answerLocked: Boolean(viewer.answer?.locked),
         // Das eigene Ergebnis kommt erst mit dem Reveal — sonst könnte der
         // Controller die Lösung vor der Bühne verraten.
         wasRight: revealing ? Boolean(this.reveal.perPlayer?.[viewer.id]?.correct) : null,

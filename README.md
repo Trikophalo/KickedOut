@@ -43,7 +43,7 @@ Sitzt ihr im selben Raum an einem Fernseher? Dann zusätzlich `http://localhost:
 | **Lobby erstellen** | Schon im Beitrittsbild wählt man die **Fragen-Genres**. Am PC steht alles gleichzeitig da: Name, Vorschau und sämtliche Figuren, ohne eine einzige Rollleiste. |
 | **Lobby** | Wer erstellt, bekommt einen Code zum Weitergeben. Alle bauen sich in zehn Sekunden eine Figur — Accessoire sitzt mittig auf dem Kopf. Die **Spielregeln stehen offen in der Lobby**, kein Fenster nötig: Antwortzeit, Fragen pro Runde, Kategorien, Moderator-Härtegrad. Der Gastgeber kann erst starten, wenn **alle bereit** sind; dann läuft der Start nach **10 Sekunden von selbst** an. Ein erneuter Klick auf „Bereit" hält ihn wieder an. |
 | **Kategorie-Zug** | Vor **jeder** Frage rattert eine Walze durch die freigeschalteten Genres und rastet hörbar auf einem ein — auch im Finale. Niemand muss je eine Kategorie wählen. |
-| **Fragerunde** | Standardmäßig 5 Fragen (in der Lobby von 2 bis 8 einstellbar), **alle tippen gleichzeitig** — mit der eingestellten Antwortzeit von 10 Sekunden bis zu einer Minute. Die Bewertung verzeiht Tippfehler, Buchstabendreher, fehlende Umlaute und Artikel — aber keine falsche Antwort. Beim Reveal liegt alles offen: Man sieht sofort, wer „Käse" für die chemische Formel von Wasser hielt. |
+| **Fragerunde** | Standardmäßig 5 Fragen (in der Lobby von 2 bis 8 einstellbar), **alle tippen gleichzeitig** — mit der eingestellten Antwortzeit von 10 Sekunden bis zu einer Minute. **Getippt ist nicht abgeschickt:** Erst Enter oder „Abschicken" gibt die Antwort ab; die Frage endet früher nur, wenn *alle* abgeschickt haben. Läuft die Zeit ab, zählt trotzdem, was im Feld steht — auch halb getippt. Die Bewertung verzeiht Tippfehler, Buchstabendreher, fehlende Umlaute und Artikel — aber keine falsche Antwort. Beim Reveal liegt alles offen: Man sieht sofort, wer „Käse" für die chemische Formel von Wasser hielt. |
 | **Kette & Pott** | Jede richtige Antwort zahlt `Wert × Multiplikator` in den gemeinsamen Pott. Beantworten **alle** eine Frage richtig, wird ein Kettenglied geschmiedet (bis ×5). **Eine einzige falsche Antwort friert die Kette ein** — Frost, Splittern, zurück auf ×1. Und alle sehen, wer schuld war. |
 | **Rundenbilanz** | Bevor gewählt wird, kommt **alles Falsche der Runde mit Namen** auf die Leinwand. Das ist der Lacher, aus dem die Stimmen entstehen. |
 | **Voting** | Pro Spieler landet **eine Antwort** auf dem Stimmzettel — bevorzugt eine falsche. Man wählt die dümmste; die eigene ist gesperrt. Auf dem Zettel stehen keine Namen, die fallen erst bei der Auszählung. |
@@ -72,7 +72,7 @@ Alles, was erklärungsbedürftig ist, erklärt sich beim Überfahren mit der Mau
 
 **Fragen sind Frischware.** Ein kuratierter Grundstock von 180 Fragen ist immer da; im Hintergrund erzeugt eine Pipeline laufend neue aus **Wikidata**-Fakten-Tripeln mit deutschen Labels. Wiederholungsfreiheit über drei Ebenen: Session-Sperre, 90-Tage-Gruppengedächtnis und Fakten-Key-Cooldown (auch die *umgedrehte* Hauptstadt-Frage pausiert mit).
 
-**Sound ohne eine einzige Audio-Datei.** Alle 31 Klänge — Amboss, Eisknacken, Trommelwirbel, Sieger-Fanfare — sind zur Laufzeit mit Web Audio synthetisiert. Die Musik ist geschichtet: Mit jeder Runde kommt eine Ebene dazu, Runde 5 klingt gefährlicher als Runde 1.
+**Eigener Titelsong, alle Effekte synthetisch.** Als Musikbett läuft „Quiz Table Glow" (`public/audio/`) — dieselbe Spur den ganzen Abend, aber nicht gleich laut: In der Lobby liegt sie gedämpft im Hintergrund, zur Abstimmung und im Finale kommt sie nach vorn und macht klanglich auf. Alle 31 Effekte — Amboss, Eisknacken, Trommelwirbel, Sieger-Fanfare — sind daneben zur Laufzeit mit Web Audio synthetisiert, ohne eine einzige Datei. Fehlt der Song, übernimmt die geschichtete Synth-Musik nahtlos.
 
 **Der QR-Code kommt aus dem eigenen Code.** Eigener Encoder (Byte-Modus, Fehlerkorrektur L) — ein QR-Dienst aus dem Netz wäre genau dann weg, wenn man ihn im Wohnzimmer-WLAN braucht.
 
@@ -108,10 +108,12 @@ server/
 public/
   host.html         Bühne          js/stage.js
   play.html         Controller     js/controller.js
-  js/audio.js       Synthesizer für alle Klänge und die Schichtenmusik
+  js/audio.js       Titelsong am Musikbus + Synthesizer für alle Effekte
   js/fx.js          Konfetti, Funken, Emoji-Regen, Frost
   js/qr.js          QR-Encoder
   js/settings.js    Einstellungs-Fenster (Zahnrad / Escape)
+  js/profile.js     Eigenes Profil, im Browser gemerkt
+  audio/            Quiz Table Glow — der Titelsong
 scripts/
   selftest.js       Spielt eine Partie über WebSockets durch
   browsertest.js    Spielt eine Partie in echtem Chromium durch

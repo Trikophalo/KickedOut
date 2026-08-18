@@ -71,10 +71,17 @@ function syncMuteButton() {
   muteBtn.classList.toggle('mint', prefs.muted);
 }
 
+// Was die drei Härtegrade bedeuten — steht beim Überfahren daneben.
+const TONES = [
+  ['charmant', 'Charmant', 'Aufmunternd und mit Augenzwinkern. Niemand geht angeknackst nach Hause.'],
+  ['bissig', 'Bissig', 'Spitze Kommentare, aber fair. Der Standard für einen normalen Abend.'],
+  ['gnadenlos', 'Gnadenlos', 'Schadenfroh und ohne Rücksicht. Nur für Gruppen, die sich das gegenseitig antun wollen.'],
+];
+
 /** Antwortzeit als Schieber — eine Zahl statt drei Stufen. */
 function timeRow(s, patch, range) {
   const { min = 10, max = 60, step = 5 } = range || {};
-  const value = el('span', { class: 'value' }, `${s.answerSeconds} s`);
+  const value = el('span', { class: 'val' }, `${s.answerSeconds} s`);
   const input = el('input', {
     type: 'range', min: String(min), max: String(max), step: String(step),
     value: String(s.answerSeconds), 'aria-label': 'Antwortzeit je Frage',
@@ -131,8 +138,9 @@ export function gameSettingGroups(ctx = {}) {
 
     el('div', { class: 'sheet-group' },
       el('span', { class: 'label' }, 'Moderator'),
-      chipRow([['charmant', 'Charmant'], ['bissig', 'Bissig'], ['gnadenlos', 'Gnadenlos']].map(([key, label]) => el('button', {
-        class: `chip${s.tone === key ? ' on' : ''}`, type: 'button',
+      el('p', { class: 'sheet-hint' }, 'Wie hart der Moderator zwischen den Phasen austeilt.'),
+      chipRow(TONES.map(([key, label, tip]) => el('button', {
+        class: `chip${s.tone === key ? ' on' : ''}`, type: 'button', 'data-tip': tip,
         onclick: (event) => { pickOne(event); patch({ tone: key }); },
       }, label)))),
   ];

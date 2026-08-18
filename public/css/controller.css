@@ -483,3 +483,8 @@
   .lobbyhead p { font-size: 0.82rem; }
   .lobbyhint { display: none; }
 }
+
+/* Abschicken steht direkt unter dem Feld — der Knopf ist die Zusage,
+   nicht das Tippen. */
+#submitAnswer { margin-top: 0.1rem; }
+#submitAnswer:disabled { opacity: 0.55; }

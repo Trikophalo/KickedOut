@@ -10,6 +10,9 @@
 
 const NOTE = (n) => 440 * Math.pow(2, (n - 69) / 12);
 
+// Der Titelsong der Show. Fehlt er, spielt die synthetische Musik weiter.
+const TRACK = '/audio/quiz-table-glow.mp3';
+
 class Engine {
   constructor() {
     this.ctx = null;
@@ -21,6 +24,7 @@ class Engine {
     this.step = 0;
     this.nextNoteTime = 0;
     this.schedulerId = null;
+    this.track = null;
   }
 
   /** Muss aus einer echten Nutzergeste heraus laufen (Autoplay-Sperren). */
@@ -52,8 +56,49 @@ class Engine {
     const data = this.noiseBuffer.getChannelData(0);
     for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
 
+    this.loadTrack(TRACK);
+
     this.ready = true;
     return true;
+  }
+
+  /**
+   * Der eigene Song als Musikbett. Er hängt am selben Bus wie alles andere:
+   * derselbe Regler, dieselbe Stummschaltung, dasselbe Wegdrücken, wenn der
+   * Moderator spricht. Lädt er nicht, übernimmt die synthetische Musik.
+   */
+  loadTrack(url) {
+    if (this.track) return;
+    let element;
+    try {
+      element = new Audio(url);
+    } catch {
+      return;
+    }
+    element.loop = true;
+    element.preload = 'auto';
+    // Fehlt die Datei, soll nicht Stille bleiben: die synthetische Musik
+    // übernimmt genau dort, wo der Song ausgefallen ist.
+    element.addEventListener('error', () => {
+      this.track = null;
+      const mood = this.mood;
+      this.mood = 'off';
+      this.setMood(mood, this.intensity);
+    });
+
+    let source;
+    try {
+      source = this.ctx.createMediaElementSource(element);
+    } catch {
+      return;   // ohne Web-Audio-Anbindung lieber gar nicht als unregelbar
+    }
+    const gain = this.ctx.createGain();
+    gain.gain.value = 0;
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 1400;
+    source.connect(filter).connect(gain).connect(this.musicBus);
+    this.track = { element, gain, filter };
   }
 
   resume() {
@@ -136,6 +181,8 @@ class Engine {
   setMood(mood, intensity = 1) {
     if (!this.ready) return;
     this.intensity = Math.max(0, Math.min(4, intensity));
+    // Der Song läuft durch; die Phase bestimmt nur, wie laut und wie offen.
+    if (this.track) { this.mood = mood; return this.shapeTrack(); }
     if (mood === this.mood) return;
     this.mood = mood;
     this.step = 0;
@@ -149,6 +196,27 @@ class Engine {
   stopMusic() {
     if (this.schedulerId) clearInterval(this.schedulerId);
     this.schedulerId = null;
+  }
+
+  /**
+   * Dieselbe Musik, andere Temperatur: In der Lobby liegt der Song gedämpft
+   * im Hintergrund, zur Abstimmung und im Finale kommt er nach vorn und
+   * macht auf. Das ersetzt die geschichtete Synth-Musik, ohne dass zwei
+   * Tonarten gegeneinander laufen.
+   */
+  shapeTrack() {
+    const { element, gain, filter } = this.track;
+    const t = this.t;
+    if (this.mood === 'off') {
+      gain.gain.setTargetAtTime(0, t, 0.4);
+      setTimeout(() => { if (this.mood === 'off') element.pause(); }, 1200);
+      return;
+    }
+    if (element.paused) element.play().catch(() => { /* Autoplay-Sperre */ });
+    const level = ({ lobby: 0.62, round: 0.74, voting: 0.88, final: 1, results: 1 })[this.mood] ?? 0.7;
+    const open = 1100 + this.intensity * 3400;
+    gain.gain.setTargetAtTime(level, t, 0.7);
+    filter.frequency.setTargetAtTime(open, t, 0.9);
   }
 
   get tempo() {

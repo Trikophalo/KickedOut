@@ -39,10 +39,13 @@ function check(label, condition, detail = '') {
 let SOLUTIONS = new Map();
 
 class Client {
-  constructor(name, hello, { knowsAnswers = false, autoReady = true } = {}) {
+  constructor(name, hello, { knowsAnswers = false, autoReady = true, lockAnswers = true } = {}) {
     this.name = name;
     this.hello = hello;
     this.knowsAnswers = knowsAnswers;
+    // Wer nicht abschickt, tippt nur — sein Text muss beim Ablauf der Zeit
+    // trotzdem zählen, darf die Frage aber nicht vorzeitig beenden.
+    this.lockAnswers = lockAnswers;
     // Wer sich nicht von selbst bereit meldet, taugt als Prüfstein für die
     // Startsperre — der Rest drückt sofort.
     this.autoReady = autoReady;
@@ -96,6 +99,12 @@ class Client {
       }
     }
     if (s.phase === 'lobby' && s.autoStartAt) this.sawCountdown = true;
+    // Der Kern der Sache: Getipptes ist noch nicht abgeschickt.
+    if ((s.phase === 'question' || s.phase === 'final_question') && s.you?.answer && !s.you.answerLocked) {
+      this.sawDraftPending = true;
+      const me = s.players.find((p) => p.isYou);
+      if (me?.answered) this.leak = 'Ein Entwurf gilt schon als abgeschickt';
+    }
     if (s.phase === 'category') {
       if (s.question) this.leak = 'Frage schon beim Kategorie-Zug ausgeliefert';
       if (!s.draw?.cat) this.leak = 'Kategorie-Zug ohne Kategorie';
@@ -130,7 +139,7 @@ class Client {
         // Alle anderen tippen Unsinn — genau daraus entsteht der Stimmzettel.
         const nonsense = ['Banane', 'Keine Ahnung', 'Dein Vater', '42', 'Käse', 'ja'];
         const text = known || nonsense[Math.floor(Math.random() * nonsense.length)];
-        setTimeout(() => this.send({ t: 'answer', text }), 20 + Math.random() * 60);
+        setTimeout(() => this.send({ t: 'answer', text, lock: this.lockAnswers }), 20 + Math.random() * 60);
       }
       return;
     }
@@ -205,7 +214,9 @@ async function main() {
       const client = new Client(`Spieler${i + 1}`, {
         t: 'join', code: stage.code, nick: `Test${i + 1}`,
         avatar: { face: '🦊', color: '#5AA7FF', hat: null },
-      }, { knowsAnswers: i === 0, autoReady: i !== 0 });
+      // Der Gastgeber tippt nur und schickt nie ab — er ist der Prüfstein.
+      // Der Letzte fliegt später aus der Verbindung, darum nicht der.
+      }, { knowsAnswers: i <= 1, autoReady: i !== 0, lockAnswers: i !== 0 });
       await client.connect();
       players.push(client);
       await sleep(60);
@@ -311,6 +322,15 @@ async function main() {
     const leaks = [stage, ...players].filter((c) => c.leak).map((c) => `${c.name}: ${c.leak}`);
     check('Weder Lösung noch fremde Eingaben vor der Auflösung ausgeliefert', leaks.length === 0, leaks.join(' | '));
     check('Auch im Finale zieht der Zufall die Kategorie', stage.sawFinalDraw === true);
+
+    // Wer nur tippt, gilt nicht als fertig — sein Text zählt trotzdem.
+    const drafter = players.find((p) => p.lockAnswers === false);
+    check('Getipptes gilt erst nach dem Abschicken als abgegeben',
+      drafter?.sawDraftPending === true);
+    const drafterRow = results.table.find((r) => r.id === drafter?.playerId);
+    check('Nicht abgeschickte Antworten zählen beim Ablauf der Zeit trotzdem',
+      Boolean(drafterRow) && drafterRow.correct > 0,
+      drafterRow ? `${drafterRow.correct} richtig` : 'nicht in der Tabelle');
     check('Niemand musste im Finale eine Kategorie wählen', !stage.seen.has('final_draft'));
 
     if (PLAYERS > 2) check('Die Bühne hat den Rausschmiss-Effekt bekommen', stage.fx.includes('eliminate'));

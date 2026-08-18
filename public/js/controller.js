@@ -524,14 +524,22 @@ const SCREENS = {
       placeholder: 'Antwort tippen …', 'aria-label': 'Deine Antwort',
       autocomplete: 'off', autocapitalize: 'sentences', enterkeyhint: 'done',
       value: me.answer || '',
+      disabled: me.answerLocked || undefined,
     });
-    field.addEventListener('input', () => scheduleSend(field.value));
+    // Tippen ist noch kein Abschicken: Der Text wird nur zwischengespeichert,
+    // damit er beim Ablauf der Zeit trotzdem zählt.
+    field.addEventListener('input', () => { saveDraft(field.value); syncSubmit(); });
     field.addEventListener('keydown', (event) => {
       if (event.key !== 'Enter') return;
       event.preventDefault();
-      sendAnswer(field.value, true);
-      field.blur();
+      submitAnswer(field.value);
     });
+
+    const submit = el('button', {
+      class: 'btn mint block', id: 'submitAnswer', type: 'button',
+      'data-tip': 'Erst damit zählt dein Wort — Enter tut dasselbe',
+      onclick: (e) => { press(e.currentTarget); submitAnswer(field.value); },
+    }, 'Abschicken ⏎');
 
     const kids = [
       el('div', { class: 'chips', style: { justifyContent: 'center' } },
@@ -540,7 +548,7 @@ const SCREENS = {
           ? el('span', { class: 'chip' }, `Frage ${state.final.questionNo}`)
           : el('span', { class: 'chip', 'data-tip': `${q.value} Punkte` }, `Frage ${q.index + 1}/${q.total}`)),
       el('p', { class: 'qtext' }, q.text),
-      el('div', { class: 'answerbox' }, field,
+      el('div', { class: 'answerbox' }, field, submit,
         el('div', { class: 'status wait', id: 'answerStatus' }, 'Schreib die Antwort — Zeit läuft.')),
       el('div', { id: 'solutionSlot' }),
     ];
@@ -554,7 +562,7 @@ const SCREENS = {
     }
 
     main.replaceChildren(el('div', { class: 'grow' }, ...kids));
-    if (!state.reveal) setTimeout(() => field.focus(), 120);
+    if (!state.reveal && !me.answerLocked) setTimeout(() => field.focus(), 120);
     UPDATE.question();
   },
 
@@ -791,11 +799,17 @@ const UPDATE = {
       return;
     }
 
-    field.disabled = false;
-    field.classList.toggle('locked', Boolean(me.answer));
-    if (me.answer) {
+    field.disabled = Boolean(me.answerLocked);
+    field.classList.toggle('locked', Boolean(me.answerLocked));
+    syncSubmit();
+
+    if (me.answerLocked) {
       status.className = 'status';
-      status.textContent = '✓ Abgeschickt — ändern geht bis zum Schluss.';
+      status.textContent = '✓ Abgeschickt. Jetzt zählt nur noch, was die anderen tippen.';
+    } else if (field.value.trim()) {
+      // Der wichtigste Satz auf diesem Bildschirm: geschrieben ist nicht gezählt.
+      status.className = 'status wait';
+      status.textContent = 'Noch nicht abgeschickt — Enter oder „Abschicken“.';
     } else {
       status.className = 'status wait';
       status.textContent = 'Schreib die Antwort — Zeit läuft.';
@@ -837,20 +851,36 @@ const stat = (key, value) => el('div', { class: 'statrow' }, el('span', { class:
 // ------------------------------------------------------------------ Antwort senden
 
 /**
- * Getippt wird laufend, gesendet gedrosselt: Wenn der Timer abläuft, während
- * jemand noch tippt, ist der letzte Zwischenstand trotzdem beim Server.
+ * Der Entwurf geht mit, gilt aber nicht als abgeschickt. Läuft die Zeit ab,
+ * zählt trotzdem, was im Feld steht — auch halb getippt.
  */
-function scheduleSend(text) {
+function saveDraft(text) {
   clearTimeout(answerTimer);
-  answerTimer = setTimeout(() => sendAnswer(text, false), 320);
+  answerTimer = setTimeout(() => net.send({ t: 'answer', text: String(text || '').trim(), lock: false }), 320);
 }
 
-function sendAnswer(text, loud) {
+/** Erst hier gilt das Wort. Haben alle abgeschickt, endet die Frage sofort. */
+function submitAnswer(text) {
   clearTimeout(answerTimer);
   const value = String(text || '').trim();
-  if (!value) return;
-  net.send({ t: 'answer', text: value });
-  if (loud) { audio.play('lock'); buzz(BUZZ.lock); }
+  if (!value) return toast('Erst etwas schreiben.', 'error');
+  net.send({ t: 'answer', text: value, lock: true });
+  audio.play('lock');
+  buzz(BUZZ.lock);
+  const field = $('#answerField');
+  if (field) { field.disabled = true; field.blur(); }
+  syncSubmit();
+}
+
+/** Der Abschicken-Knopf ist nur scharf, wenn es etwas abzuschicken gibt. */
+function syncSubmit() {
+  const button = $('#submitAnswer');
+  const field = $('#answerField');
+  if (!button || !field) return;
+  const done = Boolean(state?.you?.answerLocked) || field.disabled;
+  button.disabled = done || !field.value.trim();
+  button.textContent = done ? 'Abgeschickt ✓' : 'Abschicken ⏎';
+  button.classList.toggle('ghost', done);
 }
 
 // ------------------------------------------------------------------ Flash

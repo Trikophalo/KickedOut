@@ -190,6 +190,7 @@ async function main() {
   let sawGhost = false;
   let sawChat = false;
   let sawDraw = false;
+  let checkedDraft = false;
   let sawRecap = false;
 
   // Verliert der Test unterwegs seinen Browser, soll er das als Befund
@@ -226,6 +227,17 @@ async function main() {
     phase = seen;
 
     if (phase === 'question' || phase === 'final_question') {
+      // Wer nur tippt, darf auf der Bühne nicht als fertig erscheinen.
+      if (answered.size && !checkedDraft) {
+        const done = await stage.evaluate(() => document.querySelectorAll('.typer.done').length)
+          .catch(() => null);
+        const total = await stage.evaluate(() => document.querySelectorAll('.typer').length)
+          .catch(() => null);
+        if (done !== null && total !== null && done >= total && total > 1) {
+          problems.push('Alle gelten als fertig, obwohl einer nur getippt hat');
+        }
+        checkedDraft = true;
+      }
       if (!sawQuestion) {
         await sleep(400);
         await shot(stage, '04-buehne-frage');
@@ -243,7 +255,9 @@ async function main() {
         // Frei getippter Unsinn — genau der Stoff, aus dem der Stimmzettel wird.
         const silly = ['Banane', 'Keine Ahnung', 'Dein Vater', '42', 'Käse', 'Ottokar'];
         await field.fill(silly[(index + answered.size) % silly.length]).catch(() => {});
-        await field.press('Enter').catch(() => {});
+        // Einer schickt absichtlich nie ab: Sein Text muss beim Ablauf der
+        // Zeit trotzdem gelten, und die Frage darf nicht vorher enden.
+        if (index !== PLAYERS - 1) await field.press('Enter').catch(() => {});
         answered.add(key);
       }
     }

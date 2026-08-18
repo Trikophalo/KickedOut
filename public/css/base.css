@@ -368,7 +368,11 @@ button { cursor: pointer; border: 0; background: none; }
 }
 .slider-row { display: flex; align-items: center; gap: 0.7rem; }
 .slider-row .name { font-family: var(--font-display); font-weight: 700; min-width: 5.2rem; font-size: 0.92rem; }
-.slider-row .val { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 0.82rem; min-width: 2.6rem; text-align: right; }
+/* „25 s“ gehört in eine Zeile — die Einheit darf nicht unter die Zahl rutschen. */
+.slider-row .val {
+  font-variant-numeric: tabular-nums; color: var(--muted); font-size: 0.82rem;
+  min-width: 3.2rem; text-align: right; white-space: nowrap;
+}
 input[type="range"] {
   flex: 1; -webkit-appearance: none; appearance: none; height: 6px;
   border-radius: 999px; background: rgba(255, 255, 255, 0.16); outline: none;
