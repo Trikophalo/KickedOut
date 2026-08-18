@@ -229,9 +229,8 @@ async function main() {
     if (phase === 'category' && !sawDraw) {
       // Das Bild soll den Moment zeigen, in dem die Walze einrastet — im
       // Zeitraffer ist die Phase dafür zu kurz zum blinden Warten.
-      await stage.waitForSelector('.slot.locked', { timeout: 1500 }).catch(() => {});
+      await stage.waitForSelector('.slot', { timeout: 900 }).catch(() => {});
       await shot(stage, '16-buehne-kategorie');
-      await shot(phones[0], '17-pc-kategorie');
       sawDraw = true;
     }
 

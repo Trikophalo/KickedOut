@@ -359,7 +359,7 @@ const BUILDERS = {
     const recap = state.recap || [];
     const spoken = recap.filter((r) => !r.empty);
     const blanks = recap.length - spoken.length;
-    const show = spoken.slice(0, 8);
+    const show = spoken.slice(0, 6);
 
     scene.append(
       el('h1', { class: 'headline rise' }, spoken.length ? 'Die Ausbeute der Runde' : `Runde ${state.round} ist durch`),

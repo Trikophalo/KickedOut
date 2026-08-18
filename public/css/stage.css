@@ -412,21 +412,27 @@ body[data-phase="lobby"] .rail .players { visibility: hidden; }
 }
 .shamerow {
   display: grid; grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center; gap: 0.9rem;
-  padding: 0.6rem 1.1rem; border-radius: 18px;
-  background: var(--card); border: 2px solid var(--line);
-  animation: riseIn 420ms cubic-bezier(.2,1.3,.4,1) both;
+  align-items: center; gap: 0.15rem 0.9rem;
+  padding: 0.5rem 1.1rem; border-radius: 18px;
+  /* Karte in Creme — die Schrift darauf muss dunkel sein, sonst steht die
+     Antwort weiß auf hell und ist genau das, was niemand liest. */
+  background: var(--card); border: 2px solid var(--line); color: var(--ink);
+  text-align: left;
+  animation: riseIn 380ms cubic-bezier(.2,1.3,.4,1) both;
 }
+.shamerow .avatar { grid-column: 1; grid-row: 1 / span 2; }
 .shamerow .said {
+  grid-column: 2; grid-row: 1;
   font-family: var(--font-display); font-weight: 800;
-  font-size: clamp(1rem, 2.6vh, 1.5rem); overflow-wrap: anywhere;
+  font-size: clamp(0.95rem, 2.3vh, 1.35rem); overflow-wrap: anywhere;
 }
 .shamerow .ctx {
-  grid-column: 2; font-size: clamp(0.72rem, 1.5vh, 0.92rem);
+  grid-column: 2; grid-row: 2;
+  font-size: clamp(0.7rem, 1.4vh, 0.88rem);
   color: var(--ink-soft); overflow-wrap: anywhere;
 }
 .shamerow .who {
-  grid-row: 1 / span 2; font-family: var(--font-display); font-weight: 800;
+  grid-column: 3; grid-row: 1 / span 2;
+  font-family: var(--font-display); font-weight: 800;
   font-size: clamp(0.8rem, 1.8vh, 1.05rem); color: var(--coral-deep);
 }
-.shamerow .avatar { grid-row: 1 / span 2; }
