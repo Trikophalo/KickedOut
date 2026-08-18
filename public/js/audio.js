@@ -77,6 +77,10 @@ class Engine {
     }
     element.loop = true;
     element.preload = 'auto';
+    // Manche mobilen Browser spielen nur ab, was auch im Dokument hängt.
+    element.setAttribute('aria-hidden', 'true');
+    element.style.display = 'none';
+    document.body.append(element);
     // Fehlt die Datei, soll nicht Stille bleiben: die synthetische Musik
     // übernimmt genau dort, wo der Song ausgefallen ist.
     element.addEventListener('error', () => {
