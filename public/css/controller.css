@@ -344,7 +344,10 @@
 
 .startline {
   text-align: center; font-family: var(--font-display); font-weight: 700;
-  font-size: 0.86rem; color: var(--gold); margin: -0.2rem 0 0;
+  font-size: 0.86rem; color: var(--gold);
+  /* Platz für den Hinweis, der beim Überfahren unter dem Bereit-Knopf
+     aufklappt — sonst deckt er genau diese Zeile zu. */
+  margin: 1.7rem 0 0.2rem;
 }
 
 /* Die Sammlung der Fehlgriffe — Kern des Spaßes vor der Abstimmung. */
