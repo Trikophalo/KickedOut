@@ -21,8 +21,12 @@ Sitzt ihr im selben Raum an einem Fernseher? Dann zusätzlich `http://localhost:
 
 | Am PC — alles auf einem Bildschirm | Auf dem großen Screen |
 |---|---|
+| ![Beitritt am PC: Name, Vorschau und alle Figuren gleichzeitig sichtbar](docs/screenshots/02-beitritt.jpg) | ![Kategorie-Walze rastet auf einem Genre ein](docs/screenshots/16-buehne-kategorie.jpg) |
+| **Beitritt** — alle Figuren auf einen Blick, ohne Scrollen | **Kategorie-Zug** — die Walze rastet vor jeder Frage ein |
 | ![Fragerunde am PC: Frage, Eingabefeld, Mitspielerliste und Chat](docs/screenshots/05-pc-frage.jpg) | ![Bühne während der Fragerunde](docs/screenshots/04-buehne-frage.jpg) |
 | **Fragerunde** — tippen statt klicken, Mitspieler und Chat rechts | **Bühne** — wer schon fertig ist, sieht man; was er schrieb, nicht |
+| ![Rundenbilanz am PC mit allen falschen Antworten](docs/screenshots/19-pc-bilanz.jpg) | ![Bühne zeigt alle Fehlgriffe der Runde mit Namen](docs/screenshots/18-buehne-bilanz.jpg) |
+| **Rundenbilanz** — jeder Fehlgriff mit Namen | **… und auf der Leinwand für alle** |
 | ![Voting über die dümmste Antwort](docs/screenshots/08-pc-voting.jpg) | ![Auflösung mit allen Antworten](docs/screenshots/06-buehne-aufloesung.jpg) |
 | **Voting** — welche Antwort war die dümmste? | **Auflösung** — jetzt liegt alles offen |
 | ![Einstellungen mit Lautstärkereglern](docs/screenshots/15-einstellungen.jpg) | ![Rausschmiss mit Spotlight und Stempel](docs/screenshots/10-buehne-rausschmiss.jpg) |
