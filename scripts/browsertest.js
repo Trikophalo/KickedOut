@@ -62,6 +62,15 @@ async function main() {
     page.on('pageerror', (err) => problems.push(`[${label}] Ausnahme: ${err.message}`));
   };
 
+  // page.textContent() wartet bis zu 30 Sekunden auf sein Element. Auf
+  // einem Controller, der die Zeile gerade nicht zeigt (Geister, andere
+  // Phase), blockiert das die ganze Schleife. Also nur nachsehen, was
+  // jetzt da ist, und sonst sofort weiter.
+  const textNow = async (page, selector) => {
+    const el = await page.$(selector).catch(() => null);
+    return el ? await el.textContent().catch(() => null) : null;
+  };
+
   const shot = async (page, name) => {
     const path = join(SHOTS, `${name}.${JPEG ? 'jpg' : 'png'}`);
     // Ein verlorenes Fenster ist ein eigener Befund — kein Grund, den
@@ -206,7 +215,7 @@ async function main() {
         sawVoting = true;
       }
       for (const page of phones) {
-        const status = await page.textContent('#voteStatus').catch(() => null);
+        const status = await textNow(page, '#voteStatus');
         if (status === null || status.includes('Stimme ist drin')) continue;
         const cards = await page.$('.answercard:not([disabled])').catch(() => []);
         if (!cards.length) continue;
@@ -240,9 +249,9 @@ async function main() {
     // Chat und Emoji-Regen einmal auslösen — beides läuft über eigene
     // Nachrichtenwege und wird sonst nie angefasst.
     if (!sawChat && phase === 'round_intro') {
-      await phones[1].fill('#chatInput', 'Das war Absicht.').catch(() => {});
-      await phones[1].click('#chatbar button').catch(() => {});
-      await phones[2].click('#emojis button').catch(() => {});
+      await phones[1].fill('#chatInput', 'Das war Absicht.', { timeout: 2000 }).catch(() => {});
+      await phones[1].click('#chatbar button', { timeout: 2000 }).catch(() => {});
+      await phones[2].click('#emojis button', { timeout: 2000 }).catch(() => {});
       sawChat = true;
     }
 
@@ -250,12 +259,12 @@ async function main() {
       for (const page of phones) {
         // Nach dem Tippen meldet der Controller den eigenen Wert zurück —
         // daran erkennt der Test, dass hier nichts mehr zu tun ist.
-        const done = await page.textContent('#guessStatus').catch(() => null);
+        const done = await textNow(page, '#guessStatus');
         if (done === null || done.startsWith('Getippt')) continue;
         const input = await page.$('input[inputmode="decimal"]').catch(() => null);
         if (!input) continue;
         await input.fill(String(100 + Math.floor(Math.random() * 900))).catch(() => {});
-        await page.click('button:has-text("Tippen")').catch(() => {});
+        await page.click('button:has-text("Tippen")', { timeout: 2000 }).catch(() => {});
       }
     }
 
@@ -282,6 +291,9 @@ async function main() {
     await sleep(280);
   }
 
+  for (const name of ['04-buehne-frage', '07-buehne-voting', '10-buehne-rausschmiss', '11-buehne-finale', '12-buehne-ergebnis']) {
+    if (!shots.some((p) => p.includes(name))) problems.push(`Schlüsselmoment nie fotografiert: ${name}`);
+  }
   if (lost) problems.push(`Der Test verlor seine Fenster nach ${since().trim()}: ${lost}`);
   if (phase !== 'results') problems.push(`Das Spiel endete nicht im Ergebnis-Screen (Phase: ${phase}, nach ${since().trim()})`);
 
