@@ -362,7 +362,7 @@ const BUILDERS = {
     const show = spoken.slice(0, 6);
 
     scene.append(
-      el('h1', { class: 'headline rise' }, spoken.length ? 'Die Ausbeute der Runde' : `Runde ${state.round} ist durch`),
+      el('h1', { class: 'headline small rise' }, spoken.length ? 'Die Ausbeute der Runde' : `Runde ${state.round} ist durch`),
       el('p', { class: 'potflash' }, `Pott: ${state.pot.toLocaleString('de-DE')}`),
       show.length
         ? el('div', { class: 'shame rise' }, ...show.map((entry, i) => {

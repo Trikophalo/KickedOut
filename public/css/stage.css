@@ -36,6 +36,9 @@
 /* Der Ergebnis-Screen ist der einzige, der mehr Inhalt hat als Höhe:
    Podest, Awards, Recap und Tabelle. Er beginnt oben und scrollt. */
 body[data-phase="results"] .scene { justify-content: flex-start; gap: 0.7rem; padding-top: 0.3rem; }
+/* Die Rundenbilanz ist der zweite lange Screen. Eine zentrierte Spalte, die
+   überläuft, kappt oben — und genau dort steht die Überschrift. */
+body[data-phase="round_end"] .scene { justify-content: flex-start; gap: 0.5rem; padding-top: 0.3rem; }
 body[data-phase="results"] .podium .avatar { --size: clamp(72px, 9vw, 108px); }
 body[data-phase="results"] .crown { font-size: clamp(1.8rem, 3.4vw, 2.8rem); }
 body[data-phase="results"] .headline { font-size: clamp(1.5rem, 3.4vw, 2.6rem); }
@@ -384,13 +387,14 @@ body[data-phase="lobby"] .rail .players { visibility: hidden; }
 
 .drawbox {
   display: grid; place-items: center;
-  padding: 1.6rem 3rem; border-radius: 28px;
+  padding: clamp(1.4rem, 4vh, 2.6rem) clamp(2.6rem, 7vw, 5rem);
+  border-radius: 32px;
   background: var(--card); border: 2px solid var(--line);
   box-shadow: var(--shadow);
 }
-.slot { display: grid; place-items: center; gap: 0.4rem; min-width: 12rem; }
+.slot { display: grid; place-items: center; gap: 0.5rem; min-width: 16rem; }
 .slot-icon {
-  font-size: clamp(4rem, 11vh, 7rem); line-height: 1;
+  font-size: clamp(4.5rem, 14vh, 9rem); line-height: 1;
   animation: slotRoll 130ms ease-out;
   filter: drop-shadow(0 10px 20px rgba(8, 5, 32, 0.45));
 }
