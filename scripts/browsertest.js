@@ -103,6 +103,24 @@ async function main() {
       await page.goto(`${BASE}/join/${code}`, { waitUntil: 'domcontentloaded' });
     }
 
+    await page.waitForSelector('.builder', { timeout: 10000 });
+    if (!onPhone) {
+      // Am PC soll man beim Bauen der Figur nichts wegscrollen müssen:
+      // Name, Vorschau und alle Figuren stehen gleichzeitig im Bild.
+      const over = await page.evaluate(() => {
+        const main = document.querySelector('.ctl-main');
+        return {
+          inhalt: main ? main.scrollHeight - main.clientHeight : 0,
+          seite: document.documentElement.scrollHeight - window.innerHeight,
+        };
+      });
+      if (over.inhalt > 2 || over.seite > 2) {
+        problems.push(`Beitritt am PC scrollt (${over.inhalt}px Inhalt, ${over.seite}px Seite)`);
+      }
+      const wischt = await page.evaluate(() => [...document.querySelectorAll('.builder .row')]
+        .filter((r) => r.scrollWidth - r.clientWidth > 2).length);
+      if (wischt) problems.push(`${wischt} Figurenreihe(n) am PC nur durch Wischen erreichbar`);
+    }
     await page.fill('input[placeholder="Dein Name"]', names[i]);
     const faces = await page.$$('.builder > div:nth-child(1) .opt');
     await faces[(i * 3 + 1) % faces.length].click();
@@ -142,8 +160,12 @@ async function main() {
   await sleep(250);
 
   for (const page of phones) await page.click('#readyBtn');
+  // Sind alle bereit, startet die Lobby nach zehn Sekunden von selbst. Der
+  // Gastgeber-Klick nimmt das nur vorweg — kommt der Selbststart zuerst,
+  // ist der Knopf schon weg und das ist kein Fehler.
   await sleep(400);
-  await phones[0].click('button:has-text("Spiel starten")');
+  await phones[0].click('button:has-text("Spiel starten")', { timeout: 4000 }).catch(() => {});
+  await stage.waitForFunction(() => document.body.dataset.phase !== 'lobby', null, { timeout: 20000 });
 
   // --- Partie mitspielen ---------------------------------------------
   const answered = new Set();
@@ -153,6 +175,8 @@ async function main() {
   let sawFinale = false;
   let sawGhost = false;
   let sawChat = false;
+  let sawDraw = false;
+  let sawRecap = false;
 
   // Verliert der Test unterwegs seinen Browser, soll er das als Befund
   // melden — und nicht als nackte Ausnahme mitten in der Schleife sterben.
@@ -200,6 +224,23 @@ async function main() {
         await field.press('Enter').catch(() => {});
         answered.add(key);
       }
+    }
+
+    if (phase === 'category' && !sawDraw) {
+      // Das Bild soll den Moment zeigen, in dem die Walze einrastet — im
+      // Zeitraffer ist die Phase dafür zu kurz zum blinden Warten.
+      await stage.waitForSelector('.slot.locked', { timeout: 1500 }).catch(() => {});
+      await shot(stage, '16-buehne-kategorie');
+      await shot(phones[0], '17-pc-kategorie');
+      sawDraw = true;
+    }
+
+    if (phase === 'round_end' && !sawRecap) {
+      await stage.waitForSelector('.shame', { timeout: 1500 }).catch(() => {});
+      await sleep(700);
+      await shot(stage, '18-buehne-bilanz');
+      await shot(phones[0], '19-pc-bilanz');
+      sawRecap = true;
     }
 
     if (phase === 'reveal' && sawQuestion && !shots.some((s) => s.includes('06-'))) {
@@ -291,7 +332,8 @@ async function main() {
     await sleep(280);
   }
 
-  for (const name of ['04-buehne-frage', '07-buehne-voting', '10-buehne-rausschmiss', '11-buehne-finale', '12-buehne-ergebnis']) {
+  for (const name of ['04-buehne-frage', '07-buehne-voting', '10-buehne-rausschmiss', '11-buehne-finale',
+    '12-buehne-ergebnis', '16-buehne-kategorie', '18-buehne-bilanz']) {
     if (!shots.some((p) => p.includes(name))) problems.push(`Schlüsselmoment nie fotografiert: ${name}`);
   }
   if (lost) problems.push(`Der Test verlor seine Fenster nach ${since().trim()}: ${lost}`);

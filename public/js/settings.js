@@ -123,6 +123,19 @@ export function openSettings(ctx = {}) {
       }, meta.label)))));
 
     groups.push(el('div', { class: 'sheet-group' },
+      el('span', { class: 'label' }, 'Fragen pro Runde'),
+      el('p', { class: 'sheet-hint' }, 'So viele Fragen laufen durch, bevor über die dümmste Antwort abgestimmt wird.'),
+      chipRow([2, 3, 4, 5, 6, 7, 8].map((n) => el('button', {
+        class: `chip${s.questionsPerRound === n ? ' on' : ''}`, type: 'button',
+        onclick: (event) => {
+          audio.play('tap');
+          [...event.currentTarget.parentElement.children].forEach((c) => c.classList.remove('on'));
+          event.currentTarget.classList.add('on');
+          patch({ questionsPerRound: n });
+        },
+      }, String(n))))));
+
+    groups.push(el('div', { class: 'sheet-group' },
       el('span', { class: 'label' }, 'Kategorien'),
       chipRow(Object.entries(ctx.categories || {}).map(([key, meta]) => el('button', {
         class: `chip${s.categories.includes(key) ? ' on' : ''}`, type: 'button',

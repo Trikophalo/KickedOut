@@ -14,6 +14,8 @@ export const CONFIG = {
   minPlayers: 2,
   maxPlayers: 9,
   questionsPerRound: 5,
+  // Wie viele Fragen vor einem Rauswurf gespielt werden, stellt die Lobby ein.
+  questionsPerRoundRange: { min: 2, max: 8 },
   maxRounds: 5,
   chainMax: 5,
 
@@ -38,8 +40,13 @@ export const CONFIG = {
   timing: {
     intro: 5600,
     roundIntro: 4600,
+    // Der Kategorie-Zug vor jeder Frage: kurz genug, um nicht zu bremsen,
+    // lang genug für die Walze.
+    category: 2600,
+    // Sind alle bereit, zählt die Lobby von selbst herunter.
+    lobbyCountdown: 10000,
     reveal: 4800,
-    roundEnd: 4600,
+    roundEnd: 7200,
     voting: 40000,
     voteReveal: 11000,
     tiebreak: 22000,

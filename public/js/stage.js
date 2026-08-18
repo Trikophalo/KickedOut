@@ -8,7 +8,7 @@
 import { Net } from './net.js';
 import { audio } from './audio.js';
 import { fx, shake, countUp, setBackgroundMood } from './fx.js';
-import { $, el, avatarEl, applyAccent, Countdown, toast, CATEGORY_META, formatMs } from './ui.js';
+import { $, el, avatarEl, applyAccent, Countdown, toast, CATEGORY_META, formatMs, spinCategory } from './ui.js';
 import { openSettings, closeSettings, settingsOpen, loadPrefs } from './settings.js';
 import { drawQR } from './qr.js';
 
@@ -93,7 +93,7 @@ net.on('status', ({ connected }) => {
 // ------------------------------------------------------------------ fx-Ereignisse
 
 const MUSIC_MOOD = {
-  lobby: ['lobby', 1], intro: ['round', 1], round_intro: ['round', 1], question: ['round', 1],
+  lobby: ['lobby', 1], intro: ['round', 1], round_intro: ['round', 1], category: ['round', 1], question: ['round', 1],
   reveal: ['round', 1], round_end: ['round', 1], voting: ['voting', 1], vote_reveal: ['voting', 1],
   tiebreak: ['voting', 2], tiebreak_reveal: ['voting', 2], elimination: ['voting', 1],
   final_intro: ['final', 3], final_draft: ['final', 3], final_question: ['final', 4],
@@ -172,6 +172,7 @@ function render() {
 
 function keyFor(s) {
   switch (s.phase) {
+    case 'category': return `c:${s.round}:${s.draw?.index}`;
     case 'question':
     case 'reveal': return `q:${s.round}:${s.question?.index}`;
     case 'voting':
@@ -327,18 +328,56 @@ const BUILDERS = {
     );
   },
 
+  category() {
+    const draw = state.draw;
+    if (!draw) return;
+    const slot = el('div', { class: 'slot' });
+    const caption = el('p', { class: 'subline' }, 'Kategorie wird gezogen …');
+    scene.append(
+      el('p', { class: 'subline rise' }, `Frage ${draw.index + 1} von ${draw.total}`),
+      el('div', { class: 'drawbox rise' }, slot),
+      caption);
+    spinCategory(slot, draw, {
+      msLeft: state.phaseEndsAt ? state.phaseEndsAt - net.now() : 2000,
+      onStep: () => audio.play('tick'),
+      onLand: () => {
+        audio.play('lock');
+        caption.textContent = 'Los geht’s.';
+        caption.classList.add('landed');
+      },
+    });
+  },
+
   question() { buildQuestion(); },
   reveal() { buildQuestion(); },
 
+  /**
+   * Das Rundenende ist die Lachnummer vor der Abstimmung: alles, was
+   * danebenlag, kommt hier mit Namen auf die Leinwand.
+   */
   round_end() {
-    const alive = state.players.filter((p) => p.alive);
+    const recap = state.recap || [];
+    const spoken = recap.filter((r) => !r.empty);
+    const blanks = recap.length - spoken.length;
+    const show = spoken.slice(0, 8);
+
     scene.append(
-      el('h1', { class: 'headline rise' }, `Runde ${state.round} ist durch`),
+      el('h1', { class: 'headline rise' }, spoken.length ? 'Die Ausbeute der Runde' : `Runde ${state.round} ist durch`),
       el('p', { class: 'potflash' }, `Pott: ${state.pot.toLocaleString('de-DE')}`),
-      el('div', { class: 'candidates rise' }, ...alive.map((p) => el('div', { class: 'candidate' },
-        avatarEl(p, { size: 54 }),
-        el('span', { class: 'name' }, p.nick),
-        el('span', { class: 'stat' }, `${p.roundCorrect}/${p.roundAnswered} richtig`)))),
+      show.length
+        ? el('div', { class: 'shame rise' }, ...show.map((entry, i) => {
+          const who = byId(entry.playerId);
+          return el('div', { class: 'shamerow', style: { animationDelay: `${i * 70}ms` } },
+            avatarEl(who || { nick: '?' }, { size: 40 }),
+            el('span', { class: 'said' }, `„${entry.text}“`),
+            el('span', { class: 'ctx' }, `${entry.question} — richtig war ${entry.answer}`),
+            el('span', { class: 'who' }, who?.nick || '?'));
+        }))
+        : el('p', { class: 'subline rise' }, 'Keine einzige falsche Antwort. Ihr seid unheimlich.'),
+      spoken.length > show.length
+        ? el('p', { class: 'subline' }, `… und ${spoken.length - show.length} weitere Fehlgriffe.`)
+        : null,
+      blanks ? el('p', { class: 'subline' }, `${blanks}× wurde gar nichts geschrieben.`) : null,
     );
   },
 

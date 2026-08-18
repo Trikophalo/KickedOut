@@ -65,9 +65,9 @@ class Batch {
    * nie zweimal dieselbe Kategorie in Folge, jede aktive Kategorie mindestens
    * zweimal (sofern die Rundenlänge das hergibt).
    */
-  planRound(round) {
+  planRound(round, count = CONFIG.questionsPerRound) {
     const spec = roundSpec(round);
-    const diffs = weightedPlan(spec.mix, CONFIG.questionsPerRound);
+    const diffs = weightedPlan(spec.mix, count);
     const quota = new Map(this.categories.map((c) => [c, 0]));
     const out = [];
     let previous = this.lastCategory;

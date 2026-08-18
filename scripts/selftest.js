@@ -39,10 +39,13 @@ function check(label, condition, detail = '') {
 let SOLUTIONS = new Map();
 
 class Client {
-  constructor(name, hello, { knowsAnswers = false } = {}) {
+  constructor(name, hello, { knowsAnswers = false, autoReady = true } = {}) {
     this.name = name;
     this.hello = hello;
     this.knowsAnswers = knowsAnswers;
+    // Wer sich nicht von selbst bereit meldet, taugt als Prüfstein für die
+    // Startsperre — der Rest drückt sofort.
+    this.autoReady = autoReady;
     this.state = null;
     this.seen = new Set();
     this.fx = [];
@@ -92,6 +95,16 @@ class Client {
         if ('answerText' in p || 'answer' in p) this.leak = `Fremde Eingabe sichtbar (${p.nick})`;
       }
     }
+    if (s.phase === 'lobby' && s.autoStartAt) this.sawCountdown = true;
+    if (s.phase === 'category') {
+      if (s.question) this.leak = 'Frage schon beim Kategorie-Zug ausgeliefert';
+      if (!s.draw?.cat) this.leak = 'Kategorie-Zug ohne Kategorie';
+    }
+    // Am Rundenende steht die Sammlung der Fehlgriffe mit Namen bereit.
+    if (s.phase === 'round_end' && Array.isArray(s.recap)) {
+      if (s.recap.length) this.sawRecap = true;
+      if (s.recap.some((r) => !r.playerId || !r.answer)) this.leak = 'Unvollständiger Eintrag in der Fehlgriff-Liste';
+    }
     // Der Stimmzettel geht ohne Urheber raus.
     for (const card of s.voting?.ballot || []) {
       if ('playerId' in card) this.leak = 'Urheber auf dem Stimmzettel';
@@ -106,7 +119,7 @@ class Client {
     if (!me) return;
 
     if (s.phase === 'lobby') {
-      if (!me.ready) this.send({ t: 'ready' });
+      if (!me.ready && this.autoReady) this.send({ t: 'ready' });
       return;
     }
 
@@ -194,7 +207,7 @@ async function main() {
       const client = new Client(`Spieler${i + 1}`, {
         t: 'join', code: stage.code, nick: `Test${i + 1}`,
         avatar: { face: '🦊', color: '#5AA7FF', hat: null },
-      }, { knowsAnswers: i === 0 });
+      }, { knowsAnswers: i === 0, autoReady: i !== 0 });
       await client.connect();
       players.push(client);
       await sleep(60);
@@ -209,9 +222,25 @@ async function main() {
     check('Doppelter Name wird abgewiesen', twin.errors.length > 0, twin.errors.join('; '));
     twin.close();
 
-    await waitFor(() => players.every((p) => p.state?.you?.ready), 4000, 'Bereit-Status');
     const host = players.find((p) => p.state.you.isHost);
     check('Genau ein Gastgeber', players.filter((p) => p.state.you.isHost).length === 1);
+
+    // Der Gastgeber hält sich absichtlich zurück: Solange einer fehlt, darf
+    // weder der Selbststart anlaufen noch der Startknopf durchgehen.
+    await waitFor(() => players.filter((p) => p !== host).every((p) => p.state?.you?.ready),
+      4000, 'Bereit-Status der Gäste');
+    const errorsBefore = host.errors.length;
+    host.send({ t: 'start' });
+    await sleep(300);
+    check('Ohne „alle bereit“ startet nichts',
+      stage.state.phase === 'lobby' && host.errors.length > errorsBefore,
+      `Phase ${stage.state.phase}`);
+    check('Ohne „alle bereit“ läuft auch kein Countdown', !stage.state.autoStartAt);
+
+    host.autoReady = true;
+    host.send({ t: 'ready' });
+    await waitFor(() => players.every((p) => p.state?.you?.ready), 4000, 'Bereit-Status');
+    check('Sind alle bereit, kündigt die Lobby den Selbststart an', stage.sawCountdown === true);
 
     host.send({ t: 'start' });
     await waitFor(() => stage.state?.phase !== 'lobby', 5000, 'Spielstart');
@@ -260,11 +289,15 @@ async function main() {
       PLAYERS > 2 || !phases.has('elimination'));
 
     const expected = PLAYERS > 2
-      ? ['intro', 'round_intro', 'question', 'reveal', 'voting', 'vote_reveal',
-        'elimination', 'final_intro', 'final_question', 'final_reveal', 'results']
+      ? ['intro', 'round_intro', 'category', 'question', 'reveal', 'round_end', 'voting',
+        'vote_reveal', 'elimination', 'final_intro', 'final_question', 'final_reveal', 'results']
       : ['intro', 'final_intro', 'final_question', 'final_reveal', 'results'];
     for (const phase of expected) {
       check(`Phase „${phase}“ wurde durchlaufen`, phases.has(phase));
+    }
+
+    if (PLAYERS > 2) {
+      check('Die Fehlgriffe der Runde werden am Rundenende gezeigt', stage.sawRecap === true);
     }
 
     const leaks = [stage, ...players].filter((c) => c.leak).map((c) => `${c.name}: ${c.leak}`);

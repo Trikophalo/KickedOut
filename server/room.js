@@ -10,6 +10,7 @@ export const PHASES = {
   LOBBY: 'lobby',
   INTRO: 'intro',
   ROUND_INTRO: 'round_intro',
+  CATEGORY: 'category',
   QUESTION: 'question',
   REVEAL: 'reveal',
   ROUND_END: 'round_end',
@@ -29,6 +30,7 @@ const ANSWER_PHASES = new Set([PHASES.QUESTION, PHASES.FINAL_QUESTION]);
 
 const DEFAULT_SETTINGS = {
   pace: 'standard',
+  questionsPerRound: CONFIG.questionsPerRound,
   categories: ['allgemeinwissen', 'wissenschaft', 'geografie'],
   anonymousVoting: true,
   tone: 'bissig',
@@ -58,6 +60,10 @@ export class Room {
 
     this.phase = PHASES.LOBBY;
     this.phaseEndsAt = null;
+    this.autoStartAt = null;
+    this.autoStartTimer = null;
+    this.pending = null;
+    this.roundRecap = [];
     this.timer = null;
 
     this.round = 0;
@@ -212,10 +218,54 @@ export class Room {
     this.broadcast();
   }
 
+  everyoneReady() {
+    return this.players.size >= CONFIG.minPlayers
+      && [...this.players.values()].every((p) => p.ready);
+  }
+
+  /**
+   * Sind alle bereit, läuft die Lobby von selbst los — niemand muss auf den
+   * Gastgeber warten. Ein erneuter Klick auf „Bereit“ hält den Countdown
+   * wieder an, denn genau das ist der Notausgang für „Moment noch!“.
+   */
+  syncAutoStart() {
+    const wanted = this.phase === PHASES.LOBBY && this.everyoneReady();
+    if (wanted && !this.autoStartTimer) {
+      const ms = scaled(CONFIG.timing.lobbyCountdown);
+      this.autoStartAt = now() + ms;
+      this.autoStartTimer = setTimeout(() => {
+        this.autoStartTimer = null;
+        this.autoStartAt = null;
+        if (this.phase === PHASES.LOBBY && this.everyoneReady()) this.startGame();
+      }, ms);
+    } else if (!wanted) {
+      this.cancelAutoStart();
+    }
+  }
+
+  cancelAutoStart() {
+    if (this.autoStartTimer) clearTimeout(this.autoStartTimer);
+    this.autoStartTimer = null;
+    this.autoStartAt = null;
+  }
+
+  /** Beim Erstellen des Raums gibt es noch keinen Gastgeber zum Prüfen. */
+  applyInitialSettings(settings) {
+    this.applySettings(settings || {});
+  }
+
   onSettings(player, msg) {
     if (!player?.isHost || this.phase !== PHASES.LOBBY) return;
-    const patch = msg.settings || {};
+    this.applySettings(msg.settings || {});
+    this.broadcast();
+  }
+
+  applySettings(patch) {
     if (CONFIG.pace[patch.pace]) this.settings.pace = patch.pace;
+    if (Number.isFinite(patch.questionsPerRound)) {
+      const { min, max } = CONFIG.questionsPerRoundRange;
+      this.settings.questionsPerRound = clamp(Math.round(patch.questionsPerRound), min, max);
+    }
     if (Array.isArray(patch.categories)) {
       const valid = patch.categories.filter((c) => CATEGORIES[c]);
       if (valid.length) this.settings.categories = valid;
@@ -229,13 +279,16 @@ export class Room {
       const clean = cleanText(patch.groupId, 24).toLowerCase().replace(/[^a-z0-9-]/g, '');
       this.settings.groupId = clean || null;
     }
-    this.broadcast();
   }
 
   onStart(player) {
     if (!player?.isHost || this.phase !== PHASES.LOBBY) return;
     if (this.players.size < CONFIG.minPlayers) {
       return player.conn?.send({ t: 'error', msg: `Mindestens ${CONFIG.minPlayers} Spieler. Holt noch jemanden.` });
+    }
+    if (!this.everyoneReady()) {
+      const waiting = [...this.players.values()].filter((p) => !p.ready).map((p) => p.nick);
+      return player.conn?.send({ t: 'error', msg: `Noch nicht bereit: ${waiting.join(', ')}` });
     }
     this.startGame();
   }
@@ -423,6 +476,7 @@ export class Room {
       // Bei zwei Spielern gibt es nichts zu eliminieren — es geht sofort ums Duell.
       case PHASES.INTRO:            return this.plan.length ? this.startRound() : this.startFinale();
       case PHASES.ROUND_INTRO:      return this.askQuestion();
+      case PHASES.CATEGORY:         return this.openQuestion();
       case PHASES.QUESTION:         return this.revealAnswer();
       case PHASES.REVEAL:           return this.afterReveal();
       case PHASES.ROUND_END:        return this.openVoting();
@@ -444,6 +498,7 @@ export class Room {
   // =========================================================== Spielstart
 
   startGame() {
+    this.cancelAutoStart();
     const count = this.players.size;
     this.plan = eliminationPlan(count);
     this.round = 0;
@@ -483,7 +538,8 @@ export class Room {
     this.questionIndex = 0;
     this.reveal = null;
     this.voteResult = null;
-    this.roundQuestions = this.batch.planRound(this.round);
+    this.roundQuestions = this.batch.planRound(this.round, this.settings.questionsPerRound);
+    this.roundRecap = [];
     this.roundAnswers = [];
     this.ballot = [];
 
@@ -508,6 +564,10 @@ export class Room {
     return this.alive.filter((p) => p.connected);
   }
 
+  /**
+   * Vor jeder Frage wird erst die Kategorie gezogen. Die Walze läuft auf dem
+   * Client — der Server verrät hier nur das Fach, nie schon die Frage.
+   */
   askQuestion() {
     const q = this.roundQuestions[this.questionIndex];
     if (!q) return this.endRound();
@@ -515,14 +575,22 @@ export class Room {
     for (const player of this.players.values()) player.answer = null;
     this.reveal = null;
     this.moderatorLine = null;
-    this.current = {
+    this.current = null;
+    this.pending = {
       ...q,
       plannedDiff: calibrated(q),
       value: roundSpec(this.round).value[calibrated(q)],
     };
+    this.enter(PHASES.CATEGORY, scaled(CONFIG.timing.category));
+    this.fx('categoryDraw', { cat: q.cat, index: this.questionIndex });
+  }
+
+  openQuestion() {
+    this.current = this.pending;
+    this.pending = null;
     this.questionStartedAt = now();
     this.enter(PHASES.QUESTION, answerTimeMs(this.round, this.settings.pace));
-    this.fx('questionIn', { index: this.questionIndex, category: q.cat });
+    this.fx('questionIn', { index: this.questionIndex, category: this.current.cat });
   }
 
   revealAnswer() {
@@ -636,6 +704,15 @@ export class Room {
   endRound() {
     this.current = null;
     this.reveal = null;
+
+    // Bevor gewählt wird, kommt alles Falsche der Runde noch einmal mit
+    // Namen auf den Tisch. Das ist der Lacher, aus dem die Stimmen entstehen.
+    this.roundRecap = this.roundAnswers
+      .filter((a) => !a.correct)
+      .map((a) => ({
+        playerId: a.playerId, question: a.question,
+        text: a.text, answer: a.answer, empty: a.empty,
+      }));
 
     const juicy = shuffle(this.roundAnswers.filter((a) => !a.correct && !a.empty));
     const perfect = this.alive.every((p) => p.roundCorrect === p.roundAnswered && p.roundAnswered > 0);
@@ -1063,6 +1140,10 @@ export class Room {
     this.clearTimer();
     this.phase = PHASES.LOBBY;
     this.phaseEndsAt = null;
+    this.autoStartAt = null;
+    this.autoStartTimer = null;
+    this.pending = null;
+    this.roundRecap = [];
     this.round = 0;
     this.pot = 0;
     this.chain = 1;
@@ -1157,6 +1238,7 @@ export class Room {
       code: this.code,
       phase: this.phase,
       phaseEndsAt: this.phaseEndsAt,
+      autoStartAt: this.phase === PHASES.LOBBY ? this.autoStartAt : null,
       settings: this.settings,
       minPlayers: CONFIG.minPlayers,
       maxPlayers: CONFIG.maxPlayers,
@@ -1167,6 +1249,14 @@ export class Room {
       chainMax: CONFIG.chainMax,
       players: this.order.map((pid) => this.publicPlayer(this.players.get(pid), viewer)).filter(Boolean),
       question,
+      // Beim Kategorie-Zug geht nur das Fach raus, nicht die Frage.
+      draw: this.phase === PHASES.CATEGORY && this.pending ? {
+        cat: this.pending.cat,
+        index: this.questionIndex,
+        total: this.roundQuestions.length,
+        pool: this.settings.categories,
+      } : null,
+      recap: this.phase === PHASES.ROUND_END ? this.roundRecap : null,
       // Die Lösung verlässt den Server erst im Reveal — vorher existiert sie
       // für keinen Client, auch nicht für die Bühne.
       reveal: this.reveal,
@@ -1227,6 +1317,7 @@ export class Room {
   }
 
   broadcast() {
+    this.syncAutoStart();
     for (const conn of this.connections) {
       try { conn.send(this.snapshotFor(conn)); } catch { /* Verbindung stirbt gleich ohnehin */ }
     }

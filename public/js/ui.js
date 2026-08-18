@@ -41,7 +41,7 @@ export const CATEGORY_META = {
 
 /** Leitfarbe der Phase — der Phasenwechsel ist spürbar, bevor man ihn liest. */
 const PHASE_ACCENT = {
-  lobby: 'sky', intro: 'gold', round_intro: 'sky', question: 'sky', reveal: 'mint',
+  lobby: 'sky', intro: 'gold', round_intro: 'sky', category: 'gold', question: 'sky', reveal: 'mint',
   round_end: 'sky', voting: 'vote', vote_reveal: 'vote', tiebreak: 'gold',
   tiebreak_reveal: 'gold', elimination: 'coral', final_intro: 'gold',
   final_draft: 'gold', final_question: 'gold', final_reveal: 'gold', results: 'mint',
@@ -54,6 +54,39 @@ export function applyAccent(phase) {
   root.setProperty('--accent-soft', `var(--${key}-soft)`);
   root.setProperty('--accent-deep', `var(--${key}-deep)`);
   document.body.dataset.phase = phase;
+}
+
+/**
+ * Kategorie-Walze: läuft schnell an, wird langsamer und rastet hörbar ein.
+ * Die Dauer richtet sich nach der verbleibenden Phasenzeit — im Zeitraffer
+ * soll sie nicht ins Leere weiterlaufen.
+ */
+export function spinCategory(node, draw, { msLeft = 2000, onStep, onLand } = {}) {
+  const pool = (draw.pool?.length ? draw.pool : Object.keys(CATEGORY_META))
+    .map((c) => CATEGORY_META[c]).filter(Boolean);
+  const target = CATEGORY_META[draw.cat];
+  if (!pool.length || !target) return onLand?.();
+
+  const budget = Math.max(420, Math.min(2000, msLeft * 0.62));
+  const steps = Math.max(6, Math.min(22, Math.round(budget / 95)));
+  let i = 0;
+
+  const paint = (meta, locked) => {
+    node.replaceChildren(
+      el('span', { class: 'slot-icon' }, meta.icon),
+      el('span', { class: 'slot-label' }, meta.label));
+    node.classList.toggle('locked', locked);
+  };
+
+  const tick = () => {
+    if (!node.isConnected) return;   // Szene ist weitergezogen, Walze aus
+    if (i >= steps) { paint(target, true); onLand?.(); return; }
+    paint(pool[i % pool.length], false);
+    onStep?.();
+    i++;
+    setTimeout(tick, (budget / steps) * (0.45 + (i / steps) * 1.3));
+  };
+  tick();
 }
 
 export function press(node) {

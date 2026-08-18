@@ -319,8 +319,8 @@ button { cursor: pointer; border: 0; background: none; }
 @media (hover: hover) and (pointer: fine) {
   [data-tip]::after {
     content: attr(data-tip);
-    position: absolute; left: 50%; bottom: calc(100% + 9px);
-    transform: translate(-50%, 4px);
+    position: absolute; left: 50%; top: calc(100% + 9px);
+    transform: translate(-50%, -4px);
     background: rgba(14, 10, 38, 0.97); color: var(--text);
     border: 1px solid var(--line); border-radius: 10px;
     padding: 0.34rem 0.65rem; font-family: var(--font-body); font-weight: 600;
@@ -335,11 +335,12 @@ button { cursor: pointer; border: 0; background: none; }
   }
   [data-tip]:active::after { opacity: 0; }
   /* Am linken und rechten Rand würde der Tooltip aus dem Bild laufen. */
-  [data-tip][data-tip-side="right"]::after { left: 0; transform: translate(0, 4px); }
+  [data-tip][data-tip-side="right"]::after { left: 0; transform: translate(0, -4px); }
   [data-tip][data-tip-side="right"]:hover::after { transform: translate(0, 0); }
-  [data-tip][data-tip-side="left"]::after { left: auto; right: 0; transform: translate(0, 4px); }
+  [data-tip][data-tip-side="left"]::after { left: auto; right: 0; transform: translate(0, -4px); }
   [data-tip][data-tip-side="left"]:hover::after { transform: translate(0, 0); }
-  [data-tip][data-tip-side="below"]::after { bottom: auto; top: calc(100% + 9px); }
+  /* Nur direkt am unteren Rand klappt der Hinweis nach oben. */
+  [data-tip][data-tip-side="above"]::after { top: auto; bottom: calc(100% + 9px); }
 }
 
 /* ---------------------------------------------------------- Einstellungen */
@@ -360,6 +361,7 @@ button { cursor: pointer; border: 0; background: none; }
 .sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 .sheet-head h2 { font-size: 1.3rem; }
 .sheet-group { display: grid; gap: 0.45rem; }
+.sheet-hint { color: var(--muted); font-size: 0.78rem; line-height: 1.4; margin: -0.15rem 0 0.1rem; }
 .sheet-group > .label {
   font-family: var(--font-display); font-weight: 700; font-size: 0.82rem;
   color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em;

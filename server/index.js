@@ -159,6 +159,8 @@ function handleMessage(conn, msg) {
     const room = rooms.create();
     // Am PC erstellt man die Lobby und spielt im selben Fenster mit. Ohne
     // Namen bleibt es die reine Bühne für einen geteilten Bildschirm.
+    // Genres und Rundenlänge stellt man schon beim Erstellen ein.
+    if (msg.settings) room.applyInitialSettings(msg.settings);
     if (msg.nick) {
       const { player, error } = room.addPlayer({ nick: msg.nick, avatar: msg.avatar });
       if (error) return conn.send({ t: 'error', msg: error });

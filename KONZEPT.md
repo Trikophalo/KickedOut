@@ -65,11 +65,14 @@ Das Spiel lebt von drei Spannungen:
 ```mermaid
 flowchart LR
     A[Lobby] --> B[Intro:\nModerator begrüßt]
-    B --> C[Fragerunde\n7 Fragen, alle simultan]
-    C --> D[Voting\nanonym + Begründung]
-    D --> E[Reveal &\nRausschmiss]
+    B --> K[Kategorie-Zug\nWalze rastet ein]
+    K --> C[Frage\nalle tippen simultan]
+    C -->|noch Fragen offen| K
+    C --> R[Rundenbilanz:\nalle Fehlgriffe mit Namen]
+    R --> D[Voting\ndümmste Antwort, anonym]
+    D --> E[Auszählung &\nRausschmiss]
     E -->|noch > 2 Spieler| F[Runden-Bumper:\nWerte steigen]
-    F --> C
+    F --> K
     E -->|genau 2 Spieler| G[FINALE\nBlitz-Duell Best-of-5]
     G --> H[Ergebnis, Awards\n& Recap]
     H -->|Revanche| A
@@ -77,16 +80,20 @@ flowchart LR
 
 Der Server führt diese Phasen als strikte State Machine; jede Phase hat einen serverseitigen Timer und einen definierten Übergang. Kein Client kann Phasen erzwingen.
 
+**Ausgeschieden wird ausschließlich durch das Voting.** Punkte entscheiden nie über den Rausschmiss — sie füllen nur den gemeinsamen Pott. Deshalb ist die Rundenbilanz vor der Abstimmung keine Zierde, sondern die Grundlage: Erst wenn alle Fehlgriffe der Runde mit Namen auf der Leinwand standen, weiß die Runde, worüber sie abstimmt.
+
 ### 1.2 Lobby
 
 - **Host** öffnet `kickedout.app` → „Lobby erstellen" → bekommt **Raum-Code (4 Buchstaben)**, Teilen-Link und QR-Code auf dem großen Screen.
-- **Mitspieler** öffnen den Link oder tippen den Code ein (kein Download, kein Login): Nickname (max. 12 Zeichen, Schimpfwortfilter) + **Avatar-Baukasten** (Form × Farbe × Accessoire, in 10 Sekunden fertig, garantiert unterscheidbar).
+- **Mitspieler** öffnen den Link oder tippen den Code ein (kein Download, kein Login): Nickname (max. 12 Zeichen, Schimpfwortfilter) + **Avatar-Baukasten** (Form × Farbe × Accessoire, in 10 Sekunden fertig, garantiert unterscheidbar). Am PC steht der Baukasten vollständig im Bild — kein Scrollen, kein Wischen durch die Figurenreihen.
+- **Wer erstellt, wählt gleich die Fragen-Genres** — die Kategorien-Auswahl steckt schon im Formular, nicht erst in den Einstellungen.
 - **Host-Einstellungen** (auf dem Handy des Hosts, Vorschau auf dem großen Screen):
   - Rundenlänge: Blitz (5 s/Frage) · **Standard (10 s)** · Gemütlich (15 s)
   - Kategorien-Mix: Allgemeinwissen / Wissenschaft / Geografie einzeln zuschaltbar (Standard: alle drei)
+  - **Fragen pro Runde: 2 bis 8** (Standard 5) — so viele Fragen laufen durch, bevor abgestimmt und rausgeworfen wird
   - Voting: **Anonym (Standard)** oder Klartext-Modus (Votes öffentlich — für hartgesottene Gruppen)
   - Zusatzoptionen (V1+): Joker-Karten an/aus, Zeitgeist-Fragen an/aus, eigenes Fragen-Pack
-- Start erst ab **4 Spielern**; alle drücken **„Bereit"** (der Bereit-Tap schaltet gleichzeitig den Audio-Kontext des Geräts frei, siehe §6.2). Countdown 3-2-1, Show-Vorhang öffnet sich.
+- Start ab **2 Spielern**; alle drücken **„Bereit"** (der Bereit-Tap schaltet gleichzeitig den Audio-Kontext des Geräts frei, siehe §6.2). Der Startknopf des Gastgebers bleibt gesperrt, solange jemand fehlt. Sind alle so weit, **startet die Lobby nach 10 Sekunden von selbst** — ein erneuter Klick auf „Bereit" hält den Countdown wieder an.
 - Late-Joiner nach Spielstart landen automatisch im **Geister-Modus** (Zuschauer, §1.6) und spielen bei der Revanche mit.
 
 ### 1.3 Fragerunde: Kette & Pott

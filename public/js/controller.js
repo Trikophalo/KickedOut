@@ -9,7 +9,7 @@
 import { Net, session } from './net.js';
 import { audio, buzz, BUZZ } from './audio.js';
 import { fx } from './fx.js';
-import { $, el, avatarEl, applyAccent, toast, CATEGORY_META, formatMs, press, Countdown } from './ui.js';
+import { $, el, avatarEl, applyAccent, toast, CATEGORY_META, formatMs, press, Countdown, spinCategory } from './ui.js';
 import { openSettings, closeSettings, settingsOpen, loadPrefs } from './settings.js';
 
 const net = new Net();
@@ -26,6 +26,12 @@ let wakeLock = null;
 let lastFlashKey = null;
 let lastPot = 0;
 let answerTimer = null;
+let lobbyTick = null;
+let lastAutoLeft = null;
+
+// Genres stellt man schon beim Erstellen ein — der Rest wandert später in
+// die Spieleinstellungen der Lobby.
+let setup = { categories: Object.keys(CATEGORY_META) };
 
 const EMOJIS = ['😂', '😱', '🔥', '💀', '👏', '🤡', '❤️'];
 
@@ -172,7 +178,8 @@ function renderJoin() {
     el('div', { class: 'builder' },
       row('Figur', config.avatars.faces, 'face', (v) => v),
       row('Farbe', config.avatars.colors, 'color', null, () => 'Farbe wählen'),
-      row('Accessoire', config.avatars.hats, 'hat', (v) => v || '∅', (v) => (v ? 'Aufsetzen' : 'Ohne'))),
+      row('Accessoire', config.avatars.hats, 'hat', (v) => v || '∅', (v) => (v ? 'Aufsetzen' : 'Ohne')),
+      creating ? genreRow() : null),
     el('button', { class: 'btn big block', type: 'submit' }, creating ? 'Lobby öffnen 🎬' : 'Rein da! 🚪'),
     creating ? null : el('button', {
       class: 'btn ghost block', type: 'button', style: { maxWidth: '26rem', marginInline: 'auto' },
@@ -182,6 +189,27 @@ function renderJoin() {
   main.replaceChildren(form);
   setTimeout(() => nick.focus(), 200);
 
+  /** Welche Fächer überhaupt drankommen — mindestens eines muss bleiben. */
+  function genreRow() {
+    return el('div', {},
+      el('span', { class: 'label' }, 'Fragen-Genres'),
+      el('div', { class: 'row genres' }, ...Object.entries(CATEGORY_META).map(([key, meta]) => el('button', {
+        class: `chip${setup.categories.includes(key) ? ' on' : ''}`, type: 'button',
+        'data-tip': `${meta.label} ${setup.categories.includes(key) ? 'weglassen' : 'dazunehmen'}`,
+        onclick: (event) => {
+          const next = setup.categories.includes(key)
+            ? setup.categories.filter((c) => c !== key)
+            : [...setup.categories, key];
+          if (!next.length) return toast('Ganz ohne Fach geht es nicht.', 'error');
+          setup.categories = next;
+          event.currentTarget.classList.toggle('on', next.includes(key));
+          event.currentTarget.dataset.tip = `${meta.label} ${next.includes(key) ? 'weglassen' : 'dazunehmen'}`;
+          audio.play('tap');
+          buzz(BUZZ.tap);
+        },
+      }, `${meta.icon} ${meta.label}`))));
+  }
+
   function submit(event) {
     event.preventDefault();
     // Der erste echte Klick: Ab hier darf Ton abgespielt werden.
@@ -190,7 +218,7 @@ function renderJoin() {
     if (nick.value.trim().length < 2) return toast('Der Name braucht mindestens zwei Zeichen.', 'error');
 
     if (creating) {
-      net.connect({ t: 'createRoom', nick: nick.value.trim(), avatar: draft });
+      net.connect({ t: 'createRoom', nick: nick.value.trim(), avatar: draft, settings: { categories: setup.categories } });
     } else {
       const code = (roomCode || codeField.value).toUpperCase().replace(/[^A-Z]/g, '');
       if (code.length !== 4) return toast('Der Raum-Code hat vier Buchstaben.', 'error');
@@ -225,6 +253,10 @@ function screenFor(s) {
   if (!me) return 'wait';
   if (s.phase === 'lobby') return 'lobby';
   if (s.phase === 'results') return 'results';
+  // Kategorie-Zug und Rundenbilanz sehen alle — auch die Geister. Gerade die
+  // Sammlung der Fehlgriffe ist ja das, worüber die Runde lacht.
+  if (s.phase === 'category') return 'category';
+  if (s.phase === 'round_end') return 'recap';
   if (!me.alive) return 'ghost';
   if (s.phase === 'question' || s.phase === 'reveal') return 'question';
   if (s.phase === 'voting') return 'voting';
@@ -237,6 +269,8 @@ function screenFor(s) {
 
 function keyFor(s) {
   const screen = screenFor(s);
+  if (screen === 'category') return `c:${s.round}:${s.draw?.index}`;
+  if (screen === 'recap') return `rc:${s.round}`;
   if (screen === 'question') return `q:${s.round}:${s.question?.index}:${s.final?.questionNo ?? ''}`;
   if (screen === 'voting') return `v:${s.round}`;
   if (screen === 'ghost') return `ghost:${s.phase === 'voting' ? 'vote' : 'watch'}:${s.round}`;
@@ -244,7 +278,7 @@ function keyFor(s) {
 }
 
 const MUSIC_MOOD = {
-  lobby: ['lobby', 1], intro: ['round', 1], round_intro: ['round', 1], question: ['round', 1],
+  lobby: ['lobby', 1], intro: ['round', 1], round_intro: ['round', 1], category: ['round', 1], question: ['round', 1],
   reveal: ['round', 1], round_end: ['round', 1], voting: ['voting', 1], vote_reveal: ['voting', 1],
   tiebreak: ['voting', 2], tiebreak_reveal: ['voting', 2], elimination: ['voting', 1],
   final_intro: ['final', 3], final_draft: ['final', 3], final_question: ['final', 4],
@@ -361,26 +395,90 @@ const SCREENS = {
         'Zu zweit geht es sofort ins Duell — ab drei Leuten wird reihum rausgewählt.'));
     }
 
+    const waiting = state.players.filter((p) => !p.ready);
+    const allReady = enough && !waiting.length;
+
     kids.push(el('button', {
       class: `btn big block ${me.ready ? 'mint' : ''}`, id: 'readyBtn',
+      'data-tip': me.ready ? 'Doch noch nicht — hält auch den Countdown an' : 'Sag Bescheid, dass es losgehen kann',
       onclick: (e) => {
         audio.init(); audio.resume(); audio.play('ready'); buzz(BUZZ.lock);
         press(e.currentTarget); net.send({ t: 'ready' });
       },
     }, me.ready ? 'Bereit ✓' : 'Bereit!'));
 
+    // Sind alle so weit, läuft der Start von selbst an. Diese Zeile ist die
+    // Reißleine: Sie zeigt, wie lange man noch abbrechen kann.
+    kids.push(el('p', { class: 'startline', id: 'autoStart', hidden: true }, ''));
+
     if (me.isHost) {
       kids.push(el('button', {
-        class: 'btn sky big block', disabled: !enough || undefined,
-        'data-tip': enough ? 'Los geht’s' : `Es fehlen noch ${state.minPlayers - state.players.length}`,
+        class: 'btn sky big block', disabled: !allReady || undefined,
+        'data-tip': !enough
+          ? `Es fehlen noch ${state.minPlayers - state.players.length}`
+          : waiting.length
+            ? `Wartet noch auf ${waiting.map((p) => p.nick).join(', ')}`
+            : 'Sofort loslegen, ohne den Countdown abzuwarten',
         onclick: (e) => { press(e.currentTarget); audio.play('ready'); net.send({ t: 'start' }); },
-      }, enough ? 'Spiel starten 🎬' : `Noch ${state.minPlayers - state.players.length} fehlen`));
+      }, !enough
+        ? `Noch ${state.minPlayers - state.players.length} fehlen`
+        : waiting.length
+          ? `Warten auf ${waiting.length} ${waiting.length === 1 ? 'Person' : 'Leute'}`
+          : 'Spiel starten 🎬'));
       kids.push(el('button', {
         class: 'btn ghost block', onclick: () => openSettings(buildSettings()),
       }, '⚙️ Spieleinstellungen'));
     }
 
     main.replaceChildren(el('div', { class: 'grow' }, ...kids.filter(Boolean)));
+    if (!lobbyTick) lobbyTick = setInterval(syncAutoStart, 250);
+    syncAutoStart();
+  },
+
+  category() {
+    const draw = state.draw;
+    if (!draw) return SCREENS.wait();
+    const slot = el('div', { class: 'slot' });
+    const caption = el('div', { class: 'status wait', id: 'drawStatus' }, 'Kategorie wird gezogen …');
+    main.replaceChildren(el('div', { class: 'grow', style: { textAlign: 'center' } },
+      el('p', { class: 'lead' }, `Frage ${draw.index + 1} von ${draw.total}`),
+      el('div', { class: 'drawbox' }, slot),
+      caption));
+    spinCategory(slot, draw, {
+      msLeft: state.phaseEndsAt ? state.phaseEndsAt - net.now() : 2000,
+      onStep: () => audio.play('tick'),
+      onLand: () => {
+        audio.play('lock');
+        buzz(BUZZ.tap);
+        caption.textContent = 'Finger auf die Tastatur.';
+      },
+    });
+  },
+
+  /** Alles, was in der Runde danebenlag — mit Namen, zum Lachen. */
+  recap() {
+    const entries = (state.recap || []).filter((r) => !r.empty);
+    const blanks = (state.recap || []).length - entries.length;
+    main.replaceChildren(el('div', { class: 'grow' },
+      el('h1', { class: 'display', style: { fontSize: '1.35rem', textAlign: 'center' } },
+        entries.length ? 'Das kam dabei heraus' : `Runde ${state.round} ist durch`),
+      el('p', { style: { textAlign: 'center', color: 'var(--muted)', fontSize: '.86rem' } },
+        entries.length
+          ? 'Gleich wird gewählt, welche davon die dümmste war.'
+          : 'Nicht eine falsche Antwort. Unheimlich.'),
+      el('div', { class: 'shamelist' }, ...entries.map((entry) => {
+        const who = byId(entry.playerId);
+        return el('div', { class: 'shamecard' },
+          avatarEl(who || { nick: '?' }, { size: 30 }),
+          el('span', { class: 'shametext' },
+            el('span', { class: 'said' }, `„${entry.text}“`),
+            el('span', { class: 'ctx' }, `${entry.question} — richtig war ${entry.answer}`)),
+          el('span', { class: 'who' }, who?.nick || '?'));
+      })),
+      blanks
+        ? el('p', { style: { textAlign: 'center', color: 'var(--muted)', fontSize: '.8rem' } },
+          `${blanks}× wurde gar nichts geschrieben.`)
+        : null));
   },
 
   question() {
@@ -590,6 +688,27 @@ const WAIT_TEXT = {
   final_reveal: 'Auflösung',
 };
 
+/** Hält den Lobby-Countdown auf dem Laufenden, ohne die Szene neu zu bauen. */
+function syncAutoStart() {
+  const node = $('#autoStart');
+  if (!node || state?.phase !== 'lobby') {
+    clearInterval(lobbyTick);
+    lobbyTick = null;
+    lastAutoLeft = null;
+    return;
+  }
+  if (!state.autoStartAt) {
+    node.hidden = true;
+    lastAutoLeft = null;
+    return;
+  }
+  const left = Math.max(0, Math.ceil((state.autoStartAt - net.now()) / 1000));
+  node.hidden = false;
+  node.textContent = `Alle bereit — Start in ${left}\u00a0s. Nochmal „Bereit“ hält an.`;
+  if (left !== lastAutoLeft && left > 0 && left <= 3) audio.play('tick');
+  lastAutoLeft = left;
+}
+
 function waitDetail() {
   if (state?.phase === 'final_question' && state.final) {
     const [a, b] = state.final.players.map(byId);
@@ -600,6 +719,8 @@ function waitDetail() {
 
 const UPDATE = {
   lobby() { SCREENS.lobby(); },
+  category() {},
+  recap() {},
   question() {
     const me = state.you;
     const field = $('#answerField');
