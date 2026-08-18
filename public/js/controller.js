@@ -403,10 +403,9 @@ const SCREENS = {
     const me = state.you;
     const enough = state.players.length >= state.minPlayers;
     const kids = [
-      el('div', { style: { textAlign: 'center' } },
-        el('h1', { class: 'display', style: { fontSize: '1.6rem' } }, 'Raum ', el('span', { style: { color: 'var(--gold)', letterSpacing: '.15em' } }, state.code)),
-        el('p', { style: { color: 'var(--muted)', fontSize: '.9rem' } },
-          `${state.players.length} von ${state.maxPlayers} · ab ${state.minPlayers} geht es los`),
+      el('div', { class: 'lobbyhead' },
+        el('h1', { class: 'display' }, 'Raum ', el('span', { class: 'roomcode' }, state.code)),
+        el('p', {}, `${state.players.length} von ${state.maxPlayers} · ab ${state.minPlayers} geht es los`),
         el('button', {
           class: 'btn ghost', style: { marginTop: '.6rem', padding: '.4em 1.1em', fontSize: '.85rem' },
           'data-tip': 'Einladungslink in die Zwischenablage',
@@ -419,12 +418,16 @@ const SCREENS = {
     ];
 
     if (state.players.length === 2) {
-      kids.push(el('p', { style: { textAlign: 'center', color: 'var(--muted)', fontSize: '.85rem' } },
+      kids.push(el('p', { class: 'lobbyhint' },
         'Zu zweit geht es sofort ins Duell — ab drei Leuten wird reihum rausgewählt.'));
     }
 
     const waiting = state.players.filter((p) => !p.ready);
     const allReady = enough && !waiting.length;
+
+    // Sind alle so weit, läuft der Start von selbst an. Diese Zeile ist die
+    // Reißleine: Sie zeigt, wie lange man noch abbrechen kann.
+    kids.push(el('p', { class: 'startline', id: 'autoStart', hidden: true }, ''));
 
     kids.push(el('button', {
       class: `btn big block ${me.ready ? 'mint' : ''}`, id: 'readyBtn',
@@ -435,9 +438,6 @@ const SCREENS = {
       },
     }, me.ready ? 'Bereit ✓' : 'Bereit!'));
 
-    // Sind alle so weit, läuft der Start von selbst an. Diese Zeile ist die
-    // Reißleine: Sie zeigt, wie lange man noch abbrechen kann.
-    kids.push(el('p', { class: 'startline', id: 'autoStart', hidden: true }, ''));
 
     if (me.isHost) {
       kids.push(el('button', {
@@ -459,7 +459,7 @@ const SCREENS = {
     // einlässt, ohne erst ein Fenster aufzumachen.
     kids.push(el('section', { class: 'lobbyrules', id: 'lobbyRules' }));
 
-    main.replaceChildren(el('div', { class: 'grow' }, ...kids.filter(Boolean)));
+    main.replaceChildren(el('div', { class: 'grow lobbygrid' }, ...kids.filter(Boolean)));
     syncLobbyRules();
     if (!lobbyTick) lobbyTick = setInterval(syncAutoStart, 250);
     syncAutoStart();
