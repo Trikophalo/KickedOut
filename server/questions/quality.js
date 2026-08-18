@@ -1,7 +1,9 @@
 import { normalize, hash } from '../util.js';
-import { DIFFICULTIES } from '../config.js';
+import { DIFFICULTIES, CATEGORIES as CATALOG } from '../config.js';
 
-const CATEGORIES = new Set(['allgemeinwissen', 'wissenschaft', 'geografie']);
+// Die Liste steht in der Spielbalance — sonst kennt die Prüfung ein neues
+// Fach nicht und wirft jede Frage dazu weg.
+const CATEGORIES = new Set(Object.keys(CATALOG));
 
 // Bühnentauglichkeit: Der Fragetext läuft auf einem Fernseher in ~48px.
 // Alles darüber bricht in drei Zeilen und zerstört das Layout.

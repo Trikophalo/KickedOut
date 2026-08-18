@@ -84,6 +84,8 @@ export const CATEGORIES = {
   allgemeinwissen: { label: 'Allgemeinwissen', icon: '🧠' },
   wissenschaft: { label: 'Wissenschaft', icon: '🔬' },
   geografie: { label: 'Geografie', icon: '🌍' },
+  tiere: { label: 'Tiere', icon: '🐾' },
+  anime: { label: 'Anime', icon: '🍥' },
 };
 
 export const DIFFICULTIES = ['leicht', 'mittel', 'schwer'];

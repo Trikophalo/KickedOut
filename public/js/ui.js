@@ -33,10 +33,14 @@ export function avatarEl(player, { size = 44, tick = false, dead = false } = {})
 
 export const ANSWER_GLYPHS = ['●', '▲', '■', '◆'];
 
+// Spiegel von CATEGORIES in server/config.js — hier stehen nur Beschriftung
+// und Symbol, die Fragen selbst kommen vom Server.
 export const CATEGORY_META = {
   allgemeinwissen: { label: 'Allgemeinwissen', icon: '🧠' },
   wissenschaft: { label: 'Wissenschaft', icon: '🔬' },
   geografie: { label: 'Geografie', icon: '🌍' },
+  tiere: { label: 'Tiere', icon: '🐾' },
+  anime: { label: 'Anime', icon: '🍥' },
 };
 
 /** Leitfarbe der Phase — der Phasenwechsel ist spürbar, bevor man ihn liest. */

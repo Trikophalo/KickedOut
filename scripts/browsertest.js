@@ -104,6 +104,10 @@ async function main() {
     }
 
     await page.waitForSelector('.builder', { timeout: 10000 });
+    // Erst messen, wenn auch das Stylesheet da ist — ein halb gestylter
+    // Zwischenstand sagt nichts über das fertige Bild.
+    await page.waitForLoadState('load').catch(() => {});
+    await sleep(250);
     if (!onPhone) {
       // Am PC soll man beim Bauen der Figur nichts wegscrollen müssen:
       // Name, Vorschau und alle Figuren stehen gleichzeitig im Bild.
@@ -118,8 +122,11 @@ async function main() {
         problems.push(`Beitritt am PC scrollt (${over.inhalt}px Inhalt, ${over.seite}px Seite)`);
       }
       const wischt = await page.evaluate(() => [...document.querySelectorAll('.builder .row')]
-        .filter((r) => r.scrollWidth - r.clientWidth > 2).length);
-      if (wischt) problems.push(`${wischt} Figurenreihe(n) am PC nur durch Wischen erreichbar`);
+        .map((r, i) => ({ i, cls: r.className, over: r.scrollWidth - r.clientWidth, w: r.clientWidth }))
+        .filter((r) => r.over > 2));
+      for (const r of wischt) {
+        problems.push(`Figurenreihe ${r.i + 1} („${r.cls}“) ragt ${r.over}px über ihre ${r.w}px hinaus`);
+      }
     }
     await page.fill('input[placeholder="Dein Name"]', names[i]);
     const faces = await page.$$('.builder > div:nth-child(1) .opt');

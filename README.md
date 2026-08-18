@@ -70,7 +70,7 @@ Alles, was erklärungsbedürftig ist, erklärt sich beim Überfahren mit der Mau
 
 **Der Moderator wiederholt sich nie.** 624 Sprüche über 19 Situationen und drei Härtegrade (charmant / bissig / gnadenlos), mit Verbraucht-Set pro Lobby. Allein für den Rausschmiss stehen 96 Zeilen bereit — Bahnhofsdurchsage, Wetterbericht, Nachruf, Behördendeutsch. Am Rundenende liest er die kurioseste Antwort vor.
 
-**Fragen sind Frischware.** Ein kuratierter Grundstock von 180 Fragen ist immer da; im Hintergrund erzeugt eine Pipeline laufend neue aus **Wikidata**-Fakten-Tripeln mit deutschen Labels. Wiederholungsfreiheit über drei Ebenen: Session-Sperre, 90-Tage-Gruppengedächtnis und Fakten-Key-Cooldown (auch die *umgedrehte* Hauptstadt-Frage pausiert mit).
+**Fünf Fächer, frische Fragen.** Allgemeinwissen, Wissenschaft, Geografie, **Tiere** und **Anime** — 60 kuratierte Fragen je Fach, 300 insgesamt, und der Gastgeber schaltet einzeln zu, was drankommt. Der Grundstock ist immer da; im Hintergrund erzeugt eine Pipeline laufend neue aus **Wikidata**-Fakten-Tripeln mit deutschen Labels. Wiederholungsfreiheit über drei Ebenen: Session-Sperre, 90-Tage-Gruppengedächtnis und Fakten-Key-Cooldown (auch die *umgedrehte* Hauptstadt-Frage pausiert mit).
 
 **Eigener Titelsong, alle Effekte synthetisch.** Als Musikbett läuft „Quiz Table Glow" (`public/audio/`) — dieselbe Spur den ganzen Abend, aber nicht gleich laut: In der Lobby liegt sie gedämpft im Hintergrund, zur Abstimmung und im Finale kommt sie nach vorn und macht klanglich auf. Alle 31 Effekte — Amboss, Eisknacken, Trommelwirbel, Sieger-Fanfare — sind daneben zur Laufzeit mit Web Audio synthetisiert, ohne eine einzige Datei. Fehlt der Song, übernimmt die geschichtete Synth-Musik nahtlos.
 

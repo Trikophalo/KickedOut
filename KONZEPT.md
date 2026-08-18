@@ -89,7 +89,7 @@ Der Server führt diese Phasen als strikte State Machine; jede Phase hat einen s
 - **Wer erstellt, wählt gleich die Fragen-Genres** — die Kategorien-Auswahl steckt schon im Formular, nicht erst in den Einstellungen.
 - **Host-Einstellungen** stehen offen in der Lobby — kein Fenster, das man erst öffnen muss (Vorschau auf dem großen Screen):
   - Antwortzeit je Frage: frei einstellbar von **10 Sekunden bis zu einer Minute** (Standard 25 s)
-  - Kategorien-Mix: Allgemeinwissen / Wissenschaft / Geografie einzeln zuschaltbar (Standard: alle drei)
+  - Kategorien-Mix: Allgemeinwissen / Wissenschaft / Geografie / Tiere / Anime einzeln zuschaltbar (Standard: alle fünf)
   - **Fragen pro Runde: 2 bis 8** (Standard 5) — so viele Fragen laufen durch, bevor abgestimmt und rausgeworfen wird
   - Voting: **Anonym (Standard)** oder Klartext-Modus (Votes öffentlich — für hartgesottene Gruppen)
   - Zusatzoptionen (V1+): Joker-Karten an/aus, Zeitgeist-Fragen an/aus, eigenes Fragen-Pack
@@ -322,7 +322,7 @@ Ein durchgehender **Ambient-Loop** pro Phase, in Schichten gebaut (Pad → Percu
 
 ### 4.1 Anforderungen
 
-1. Kategorien: **Allgemeinwissen, Wissenschaft, Geografie** (erweiterbar).
+1. Kategorien: **Allgemeinwissen, Wissenschaft, Geografie, Tiere, Anime** (erweiterbar — ein Eintrag in `CATEGORIES`, und Prüfung, Nachschub und Lobby kennen das Fach).
 2. **Keine Wiederholungen** — weder im Spiel, noch für dieselbe Gruppe über Wochen.
 3. **Laufender Nachschub** statt endlichem Katalog; optional tagesaktuelle Fragen.
 4. **Qualität:** keine falschen/veralteten Fakten, genau eine vertretbare richtige Antwort, plausible Distraktoren, sauberes Deutsch.

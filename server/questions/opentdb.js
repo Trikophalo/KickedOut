@@ -21,7 +21,8 @@ const CATEGORY_MAP = {
   17: 'wissenschaft',     // Science & Nature
   18: 'wissenschaft',     // Computers
   19: 'wissenschaft',     // Mathematics
-  27: 'wissenschaft',     // Animals
+  27: 'tiere',            // Animals
+  31: 'anime',            // Japanese Anime & Manga
   22: 'geografie',        // Geography
 };
 
