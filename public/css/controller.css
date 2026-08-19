@@ -406,7 +406,9 @@
   .join .preview .avatar { --size: 84px; }
   .join .btn.block, .join .btn.ghost.block { max-width: none; min-width: 0; width: 100%; }
 
-  .builder .row { flex-wrap: wrap; overflow: visible; gap: 0.35rem; padding: 0.15rem; }
+  /* Die ausgewählte Figur wird um 12 % vergrößert. Ohne etwas Luft an den
+     Seiten steht sie am Zeilenrand über und zählt als Überlauf. */
+  .builder .row { flex-wrap: wrap; overflow: visible; gap: 0.35rem; padding: 0.2rem 0.45rem; }
   .builder .opt { width: 44px; height: 44px; font-size: 1.3rem; border-width: 2px; }
   .builder .label { font-size: 0.74rem; }
 }
