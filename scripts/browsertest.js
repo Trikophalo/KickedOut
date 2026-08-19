@@ -121,9 +121,15 @@ async function main() {
       if (over.inhalt > 2 || over.seite > 2) {
         problems.push(`Beitritt am PC scrollt (${over.inhalt}px Inhalt, ${over.seite}px Seite)`);
       }
+      // Nur scrollbare Zeilen können Inhalt verstecken. Steht overflow auf
+      // visible, ist ein größerer scrollWidth bloß die vergrößerte Auswahl,
+      // die über den Rand hinausragt — sichtbar, nicht verborgen.
       const wischt = await page.evaluate(() => [...document.querySelectorAll('.builder .row')]
-        .map((r, i) => ({ i, cls: r.className, over: r.scrollWidth - r.clientWidth, w: r.clientWidth }))
-        .filter((r) => r.over > 2));
+        .map((r, i) => ({
+          i, cls: r.className, over: r.scrollWidth - r.clientWidth, w: r.clientWidth,
+          scrollbar: getComputedStyle(r).overflowX !== 'visible',
+        }))
+        .filter((r) => r.scrollbar && r.over > 2));
       for (const r of wischt) {
         problems.push(`Figurenreihe ${r.i + 1} („${r.cls}“) ragt ${r.over}px über ihre ${r.w}px hinaus`);
       }
