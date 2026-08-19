@@ -510,13 +510,17 @@ const BUILDERS = {
 
   /** Alles, was die zwei geschrieben haben — der Lacher zum Schluss. */
   final_recap() {
-    const entries = sortedFinalAnswers().slice(0, 6);
+    // Der Punktestand darüber braucht Platz — vier Karten passen sicher.
+    const entries = sortedFinalAnswers().slice(0, 4);
     const parts = [
       el('h1', { class: 'headline small rise' }, 'Das Duell, Wort für Wort'),
       finalScore(),
       entries.length
         ? el('div', { class: 'shame rise' }, ...entries.map((entry, i) => finalRow(entry, i)))
         : el('p', { class: 'subline rise' }, 'Kein einziger Fehltritt. Auch das gibt es.'),
+      sortedFinalAnswers().length > entries.length
+        ? el('p', { class: 'subline' }, `… und ${sortedFinalAnswers().length - entries.length} weitere auf den Handys.`)
+        : null,
     ];
     scene.append(...parts.filter(Boolean));
   },

@@ -39,6 +39,9 @@ body[data-phase="results"] .scene { justify-content: flex-start; gap: 0.7rem; pa
 /* Die Rundenbilanz ist der zweite lange Screen. Eine zentrierte Spalte, die
    überläuft, kappt oben — und genau dort steht die Überschrift. */
 body[data-phase="round_end"] .scene { justify-content: flex-start; gap: 0.5rem; padding-top: 0.3rem; }
+/* Die Duell-Nachlese trägt zusätzlich den Punktestand — auch sie beginnt
+   oben, sonst rutscht die letzte Karte hinter die Moderatorenzeile. */
+body[data-phase="final_recap"] .scene { justify-content: flex-start; gap: 0.45rem; padding-top: 0.3rem; }
 body[data-phase="results"] .podium .avatar { --size: clamp(72px, 9vw, 108px); }
 body[data-phase="results"] .crown { font-size: clamp(1.8rem, 3.4vw, 2.8rem); }
 body[data-phase="results"] .headline { font-size: clamp(1.5rem, 3.4vw, 2.6rem); }
