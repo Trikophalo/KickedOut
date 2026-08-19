@@ -91,6 +91,10 @@ class Client {
 
   /** Die Zusagen aus dem Konzept, gegen jeden einzelnen Zustand geprüft. */
   audit(s) {
+    // Auch in der Auflösung bleibt offen, wer was geschrieben hat.
+    for (const card of s.reveal?.answers || []) {
+      if ('playerId' in card) this.leak = 'Urheber in der Auflösung';
+    }
     if (s.phase === 'question' || s.phase === 'final_question') {
       if (s.question && ('answer' in s.question || 'options' in s.question)) this.leak = 'Lösung im Fragen-Objekt';
       if (s.reveal) this.leak = 'reveal-Block vor der Auflösung';
@@ -104,7 +108,8 @@ class Client {
     if (s.phase === 'lobby' && s.autoStartAt) this.sawCountdown = true;
     if (s.phase === 'final_recap' && Array.isArray(s.finalRecap) && s.finalRecap.length) {
       this.sawFinalRecap = true;
-      if (s.finalRecap.some((e) => !e.playerId || !e.answer)) this.leak = 'Unvollständige Duell-Nachlese';
+      if (s.finalRecap.some((e) => !e.answer)) this.leak = 'Unvollständige Duell-Nachlese';
+      if (s.finalRecap.some((e) => e.playerId)) this.leak = 'Urheber in der Duell-Nachlese';
     }
     // Ein Finalist darf über sich selbst nicht abstimmen. Der Stimmzettel
     // steht ohnehin auf der Bühne — entscheidend ist, dass der Server die
@@ -124,7 +129,9 @@ class Client {
     // Am Rundenende steht die Sammlung der Fehlgriffe mit Namen bereit.
     if (s.phase === 'round_end' && Array.isArray(s.recap)) {
       if (s.recap.length) this.sawRecap = true;
-      if (s.recap.some((r) => !r.playerId || !r.answer)) this.leak = 'Unvollständiger Eintrag in der Fehlgriff-Liste';
+      if (s.recap.some((r) => !r.answer)) this.leak = 'Unvollständiger Eintrag in der Fehlgriff-Liste';
+      // Vor der Abstimmung darf kein Name an einer Antwort hängen.
+      if (s.recap.some((r) => r.playerId)) this.leak = 'Urheber in der Fehlgriff-Liste';
     }
     // Der Stimmzettel geht ohne Urheber raus.
     for (const card of s.voting?.ballot || []) {
@@ -324,14 +331,12 @@ async function main() {
     check('Es gibt genau einen Sieger', Boolean(results.winnerId));
     check('Genau zwei Spieler erreichen das Finale', finalists.length === 2, `${finalists.length}`);
     check('Alle anderen sind rausgeflogen', stage.state.players.filter((p) => p.eliminatedRound).length === PLAYERS - 2);
-    // Im erzwungenen Gleichstand tippt zu zweit niemand etwas Richtiges —
-    // dann gibt es auch nichts einzuzahlen.
+    // Im erzwungenen Gleichstand tippt zu zweit niemand etwas Richtiges.
     if (!(TIE && PLAYERS === 2)) {
-      check('Wer die Antwort tippt, füllt den Pott', results.pot > 0, `${results.pot}`);
+      const beste = results.table.reduce((a, b) => (a.correct >= b.correct ? a : b));
+      check('Richtige Antworten landen in der Bilanz', beste.correct > 0, `${beste.correct}`);
     }
-    const contributed = results.table.reduce((sum, r) => sum + r.contributed, 0);
-    check('Der Pott entspricht exakt der Summe aller Einzahlungen',
-      results.pot === contributed, `${results.pot} vs ${contributed}`);
+
     // Auch nach Sudden Death darf der Sieger nie als rausgeflogen geführt werden.
     const winner = stage.state.players.find((p) => p.id === results.winnerId);
     check('Der Sieger ist nicht rausgeflogen', winner && !winner.eliminatedRound && winner.alive,
@@ -361,11 +366,12 @@ async function main() {
     check('Nach dem Duell kommen beide Antwortsammlungen auf den Tisch',
       stage.sawFinalRecap === true);
 
-    // Zu zweit gibt es niemanden, der zuschauen könnte — dann bleibt es bei
-    // der Schätzfrage. Das ist der Rückfallweg, kein Fehler.
+    // Zu zweit gibt es niemanden, der zuschauen könnte — dann entscheidet
+    // die Antwortzeit, ohne Umweg über eine Schätzfrage.
     if (TIE && PLAYERS === 2) {
-      check('Ohne Zuschauer entscheidet bei Gleichstand weiter die Schätzfrage',
-        stage.seen.has('tiebreak') && !stage.seen.has('final_vote'));
+      check('Ohne Zuschauer entscheidet bei Gleichstand die Antwortzeit',
+        !stage.seen.has('final_vote') && !stage.seen.has('tiebreak') && Boolean(results.winnerId),
+        [...stage.seen].join(', '));
     }
 
     if (TIE && PLAYERS > 2) {
@@ -405,7 +411,8 @@ async function main() {
     await waitFor(() => stage.state?.phase === 'lobby', 5000, 'Revanche');
     check('Revanche stellt die Lobby wieder her', stage.state.phase === 'lobby');
     check('Nach der Revanche leben wieder alle', stage.state.players.every((p) => p.alive));
-    check('Nach der Revanche ist der Pott zurückgesetzt', stage.state.pot === 0);
+    check('Nach der Revanche zählt wieder bei null an',
+      stage.state.players.every((p) => p.correct === 0));
 
     for (const client of [stage, ...players]) client.close();
   } catch (err) {

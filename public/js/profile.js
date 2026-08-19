@@ -80,7 +80,7 @@ export function openProfile(ctx = {}) {
   if (ctx.stats) {
     groups.push(el('div', { class: 'sheet-group profile-stats' },
       stat('richtig', `${ctx.stats.correct}/${ctx.stats.answeredCount}`),
-      stat('eingezahlt', ctx.stats.contributed.toLocaleString('de-DE')),
+      stat('daneben', `${Math.max(0, ctx.stats.answeredCount - ctx.stats.correct)}`),
       stat('Stimmen', ctx.stats.votesReceived ?? 0)));
   }
 

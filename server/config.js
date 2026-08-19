@@ -17,15 +17,14 @@ export const CONFIG = {
   // Wie viele Fragen vor einem Rauswurf gespielt werden, stellt die Lobby ein.
   questionsPerRoundRange: { min: 2, max: 8 },
   maxRounds: 5,
-  chainMax: 5,
 
-  // Punktwerte und Schwierigkeits-Mix je Runde (Werte-Rampe aus dem Konzept §1.3).
+  // Schwierigkeits-Mix je Runde: Es wird von Runde zu Runde härter.
   rounds: [
-    { value: { leicht: 100, mittel: 150, schwer: 200 }, mix: { leicht: 0.7, mittel: 0.25, schwer: 0.05 } },
-    { value: { leicht: 150, mittel: 200, schwer: 300 }, mix: { leicht: 0.55, mittel: 0.35, schwer: 0.1 } },
-    { value: { leicht: 200, mittel: 300, schwer: 400 }, mix: { leicht: 0.4, mittel: 0.4, schwer: 0.2 } },
-    { value: { leicht: 250, mittel: 400, schwer: 550 }, mix: { leicht: 0.25, mittel: 0.45, schwer: 0.3 } },
-    { value: { leicht: 300, mittel: 500, schwer: 700 }, mix: { leicht: 0.15, mittel: 0.45, schwer: 0.4 } },
+    { mix: { leicht: 0.7, mittel: 0.25, schwer: 0.05 } },
+    { mix: { leicht: 0.55, mittel: 0.35, schwer: 0.1 } },
+    { mix: { leicht: 0.4, mittel: 0.4, schwer: 0.2 } },
+    { mix: { leicht: 0.25, mittel: 0.45, schwer: 0.3 } },
+    { mix: { leicht: 0.15, mittel: 0.45, schwer: 0.4 } },
   ],
 
   // Wie lange man pro Frage tippen darf — frei einstellbar in der Lobby.
@@ -62,10 +61,13 @@ export const CONFIG = {
     answerGrace: 900,
   },
 
-  finale: {
-    winScore: 3,
-    maxQuestions: 7,
-  },
+  // Das Finale ist einfach die letzte Runde, gespielt von zweien: Es gewinnt,
+  // wer mehr richtig hat. Bei Gleichstand entscheiden die Zuschauer, und wenn
+  // auch die sich nicht einig sind, die Antwortzeit.
+  finale: {},
+
+  // Der Stimmzettel zeigt möglichst viele Fehlgriffe — aber nicht endlos.
+  vote: { maxCards: 12 },
 
   chat: {
     maxLength: 160,

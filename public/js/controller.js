@@ -25,7 +25,6 @@ let intent = new URLSearchParams(location.search).get('neu') === '1' ? 'create' 
 let draft = { face: null, color: null, hat: null };
 let wakeLock = null;
 let lastFlashKey = null;
-let lastPot = 0;
 let answerTimer = null;
 let lobbyTick = null;
 let lastAutoLeft = null;
@@ -120,8 +119,7 @@ function onFx(name, data = {}) {
   switch (name) {
     case 'gameStart': audio.play('gameStart'); break;
     case 'questionIn': audio.play('questionIn'); break;
-    case 'chainForged': audio.play('forge', { chain: data.chain }); break;
-    case 'chainBreak': audio.play('freeze'); fx.frost(900); break;
+    case 'allCorrect': audio.play('forge', { chain: 3 }); break;
     case 'votingOpen': audio.play('votingOpen'); break;
     case 'voteReveal': audio.play('drumroll', { dur: 1.4 }); break;
     case 'eliminate': setTimeout(() => audio.play('eliminate'), 1200); break;
@@ -280,8 +278,10 @@ function screenFor(s) {
   if (s.phase === 'final_vote_reveal') return 'finalVoteReveal';
   // Abgestimmt wird nur von den Zuschauern; die zwei da oben schauen zu.
   if (s.phase === 'final_vote') return me.alive ? 'wait' : 'finalVote';
-  if (!me.alive) return 'ghost';
+  // Wer raus ist, schaut trotzdem mit: dieselbe Frage, nur ohne Eingabe.
+  // Nichts ist zäher, als danebenzusitzen und nichts zu sehen.
   if (s.phase === 'question' || s.phase === 'reveal') return 'question';
+  if (!me.alive) return 'ghost';
   if (s.phase === 'voting') return 'voting';
   if (s.phase === 'vote_reveal') return 'voteReveal';
   if (s.phase === 'tiebreak') return s.tiebreak?.participants.includes(me.id) ? 'guess' : 'wait';
@@ -333,21 +333,6 @@ function updateTop() {
     meBox.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
   }
 
-  const potNum = $('#potNum');
-  if (state.pot !== lastPot) {
-    potNum.textContent = state.pot.toLocaleString('de-DE');
-    $('#pot').classList.add('bump');
-    setTimeout(() => $('#pot').classList.remove('bump'), 400);
-    lastPot = state.pot;
-  } else {
-    potNum.textContent = state.pot.toLocaleString('de-DE');
-  }
-
-  const chip = $('#chainChip');
-  chip.textContent = `×${state.chain}`;
-  chip.style.background = state.chain > 1 ? 'var(--gold)' : '';
-  chip.style.color = state.chain > 1 ? 'var(--ink)' : '';
-
   const round = $('#roundChip');
   round.hidden = state.phase === 'lobby';
   round.textContent = state.final ? '🏁 Finale' : state.round ? `Runde ${state.round}/${state.roundTotal}` : '…';
@@ -383,7 +368,7 @@ function updateRoster() {
     return el('div', {
       class: `rosterrow${p.alive ? '' : ' out'}${p.isYou ? ' me' : ''}`,
       'data-tip': p.alive
-        ? `${p.correct}/${p.answeredCount} richtig · ${p.contributed.toLocaleString('de-DE')} eingezahlt`
+        ? `${p.correct} von ${p.answeredCount} richtig`
         : `Raus in Runde ${p.eliminatedRound}`,
       'data-tip-side': 'left',
     },
@@ -503,22 +488,19 @@ const SCREENS = {
       el('h1', { class: 'display', style: { fontSize: '1.35rem', textAlign: 'center' } }, 'Das Duell, Wort für Wort'),
       el('p', { style: { textAlign: 'center', color: 'var(--muted)', fontSize: '.86rem' } },
         'Alles, was die zwei geschrieben haben.'),
-      el('div', { class: 'shamelist' }, ...entries.map((entry) => {
-        const who = byId(entry.playerId);
-        return el('div', { class: `shamecard${entry.correct ? ' right' : ''}` },
-          avatarEl(who || { nick: '?' }, { size: 30 }),
-          el('span', { class: 'shametext' },
-            el('span', { class: 'said' }, entry.empty ? '… nichts geschrieben' : `„${entry.text}“`),
-            el('span', { class: 'ctx' }, `Frage ${entry.no}: ${entry.question} — richtig war ${entry.answer}`)),
-          el('span', { class: 'who' }, who?.nick || '?'));
-      }))));
+      el('div', { class: 'shamelist' }, ...entries.map((entry) => el('div', {
+        class: `shamecard${entry.correct ? ' right' : ''}`,
+      },
+      el('span', { class: 'shametext' },
+        el('span', { class: 'said' }, entry.empty ? '… nichts geschrieben' : `„${entry.text}“`),
+        el('span', { class: 'ctx' }, `Frage ${entry.no}: ${entry.question} — richtig war ${entry.answer}`)),
+      el('span', { class: 'who' }, entry.correct ? '✓' : '✗'))))));
   },
 
   /** Nur für Zuschauer: Welche der zwei Antworten war die dümmste? */
   finalVote() {
     const ballot = state.finalVote?.ballot || [];
     const cards = el('div', { class: 'ballot' }, ...ballot.map((card) => {
-      const who = byId(card.playerId);
       const node = el('button', {
         class: 'answercard', type: 'button', 'data-id': card.id,
         onclick: () => {
@@ -529,11 +511,9 @@ const SCREENS = {
           net.send({ t: 'vote', ballotId: card.id });
         },
       },
-      avatarEl(who || { nick: '?' }, { size: 30 }),
       el('span', {},
         el('span', { class: `said${card.empty ? ' blank' : ''}` }, card.empty ? '… gar nichts geschrieben' : `„${card.text}“`),
-        el('span', { class: 'ctx' }, `${card.question} — richtig war ${card.answer}`)),
-      el('span', { class: 'mark' }, who?.nick || ''));
+        el('span', { class: 'ctx' }, `${card.question} — richtig war ${card.answer}`)));
       return node;
     }));
 
@@ -576,15 +556,11 @@ const SCREENS = {
         entries.length
           ? 'Gleich wird gewählt, welche davon die dümmste war.'
           : 'Nicht eine falsche Antwort. Unheimlich.'),
-      el('div', { class: 'shamelist' }, ...entries.map((entry) => {
-        const who = byId(entry.playerId);
-        return el('div', { class: 'shamecard' },
-          avatarEl(who || { nick: '?' }, { size: 30 }),
-          el('span', { class: 'shametext' },
-            el('span', { class: 'said' }, `„${entry.text}“`),
-            el('span', { class: 'ctx' }, `${entry.question} — richtig war ${entry.answer}`)),
-          el('span', { class: 'who' }, who?.nick || '?'));
-      })),
+      // Ohne Namen — gleich wird über genau diese Antworten abgestimmt.
+      el('div', { class: 'shamelist' }, ...entries.map((entry) => el('div', { class: 'shamecard' },
+        el('span', { class: 'shametext' },
+          el('span', { class: 'said' }, `„${entry.text}“`),
+          el('span', { class: 'ctx' }, `${entry.question} — richtig war ${entry.answer}`))))),
       blanks
         ? el('p', { style: { textAlign: 'center', color: 'var(--muted)', fontSize: '.8rem' } },
           `${blanks}× wurde gar nichts geschrieben.`)
@@ -596,6 +572,22 @@ const SCREENS = {
     if (!q) return SCREENS.wait();
     const me = state.you;
     const meta = CATEGORY_META[q.cat];
+
+    // Geister lesen mit, tippen aber nicht. Ohne die Frage zu sehen, sitzt
+    // man draußen und langweilt sich.
+    if (!me.alive) {
+      main.replaceChildren(el('div', { class: 'grow' },
+        el('div', { class: 'chips', style: { justifyContent: 'center' } },
+          el('span', { class: 'chip' }, `${meta.icon} ${meta.label}`),
+          el('span', { class: 'chip' }, `Frage ${q.index + 1}/${q.total}`)),
+        el('p', { class: 'qtext' }, q.text),
+        el('div', { class: 'status wait' }, state.reveal
+          ? `Richtig war: ${state.reveal.answer}`
+          : '👻 Du schaust nur zu — mal sehen, wer sich blamiert.'),
+        el('div', { class: 'ghostbox' },
+          el('p', {}, 'Du bist raus, aber nicht weg: Chat und Emoji-Regen laufen weiter.'))));
+      return;
+    }
 
     const field = el('input', {
       class: 'field answerfield', id: 'answerField', maxlength: '40',
@@ -624,7 +616,7 @@ const SCREENS = {
         el('span', { class: 'chip', 'data-tip': 'Kategorie' }, `${meta.icon} ${meta.label}`),
         state.final
           ? el('span', { class: 'chip' }, `Frage ${state.final.questionNo}`)
-          : el('span', { class: 'chip', 'data-tip': `${q.value} Punkte` }, `Frage ${q.index + 1}/${q.total}`)),
+          : el('span', { class: 'chip' }, `Frage ${q.index + 1}/${q.total}`)),
       el('p', { class: 'qtext' }, q.text),
       el('div', { class: 'answerbox' }, field, submit,
         el('div', { class: 'status wait', id: 'answerStatus' }, 'Schreib die Antwort — Zeit läuft.')),
@@ -696,7 +688,7 @@ const SCREENS = {
     });
     main.replaceChildren(el('div', { class: 'grow' },
       el('h1', { class: 'display', style: { fontSize: '1.3rem', textAlign: 'center' } },
-        tb.mode === 'suddenDeath' ? '💥 Sudden Death' : '⚡ Blitz-Stechen'),
+        '⚡ Blitz-Stechen'),
       el('p', { class: 'qtext' }, tb.question.text),
       tb.question.unit ? el('p', { style: { textAlign: 'center', color: 'var(--muted)' } }, `Angabe in ${tb.question.unit}`) : null,
       input,
@@ -746,13 +738,11 @@ const SCREENS = {
     const winner = byId(state.results.winnerId);
     const kids = [
       el('div', { style: { textAlign: 'center' } },
-        el('h1', { class: 'display', style: { fontSize: '1.6rem' } }, won ? '👑 Du hast den Pott!' : 'Vorbei.'),
-        winner && !won ? el('p', { style: { color: 'var(--muted)' } }, `${winner.nick} gewinnt mit ${state.results.pot.toLocaleString('de-DE')} Punkten.`) : null),
+        el('h1', { class: 'display', style: { fontSize: '1.6rem' } }, won ? '👑 Du hast gewonnen!' : 'Vorbei.'),
+        winner && !won ? el('p', { style: { color: 'var(--muted)' } }, `${winner.nick} gewinnt.`) : null),
       el('div', { class: 'mystats' },
         stat('Richtig', row ? `${row.correct}/${row.answered}` : '–'),
         stat('Ø Antwortzeit', formatMs(row?.avgMs)),
-        stat('In den Pott gezahlt', (row?.contributed ?? 0).toLocaleString('de-DE')),
-        stat('Kette gebrochen', row?.chainBreaks ? `${row.chainBreaks}×` : 'nie'),
         stat('Rausgeflogen', row?.eliminatedRound ? `Runde ${row.eliminatedRound}` : 'gar nicht')),
     ];
     const mine = state.results.awards.filter((a) => a.id === me.id);
@@ -891,7 +881,7 @@ const UPDATE = {
       if (slot && !slot.childElementCount) {
         slot.append(el('div', { class: 'solution' },
           `Richtig war: ${state.reveal.answer}`,
-          state.reveal.potDelta ? el('small', {}, `+${state.reveal.potDelta.toLocaleString('de-DE')} in den Pott`) : null));
+          el('small', {}, `${state.reveal.correctCount} von ${state.reveal.total} richtig`)));
       }
       return;
     }
@@ -991,12 +981,8 @@ function handleFlash() {
 
   if (state.reveal && ['reveal', 'final_reveal'].includes(state.phase)) {
     key = `rev:${state.round}:${state.question?.index}:${state.final?.questionNo ?? ''}`;
-    const brokeChain = state.reveal.breakers?.includes(me.id) && state.reveal.chainBroken;
-    if (brokeChain) {
-      content = { cls: 'ice', big: '🥶', sub: 'Du hast die Kette gebrochen.' };
-      audio.play('freeze'); buzz(BUZZ.chainBreak);
-    } else if (me.wasRight) {
-      content = { cls: 'good', big: 'Richtig!', sub: state.reveal.potDelta ? `+${(state.question.value * state.reveal.chainBefore).toLocaleString('de-DE')} in den Pott` : 'Punkt für dich' };
+    if (me.wasRight) {
+      content = { cls: 'good', big: 'Richtig!', sub: 'Das zählt für dich.' };
       audio.play('correct'); buzz(BUZZ.correct);
     } else {
       content = { cls: 'bad', big: 'Daneben.', sub: `Richtig war: ${state.reveal.answer}` };
@@ -1011,7 +997,7 @@ function handleFlash() {
     if (hit) { audio.play('eliminate'); buzz(BUZZ.eliminated); } else audio.play('toast');
   } else if (state.phase === 'results' && state.results.winnerId === me.id) {
     key = 'win';
-    content = { cls: 'gold', big: '👑 Gewonnen!', sub: `${state.results.pot.toLocaleString('de-DE')} Punkte gehören dir.` };
+    content = { cls: 'gold', big: '👑 Gewonnen!', sub: 'Du hattest am Ende die meisten richtig.' };
     audio.play('fanfare'); buzz(BUZZ.win); fx.confetti({ count: 120 });
   }
 
@@ -1097,7 +1083,7 @@ function showProfile() {
   const me = state.players.find((p) => p.isYou);
   openProfile({
     player: { ...state.you, avatar: state.you.avatar },
-    stats: me ? { correct: me.correct, answeredCount: me.answeredCount, contributed: me.contributed, votesReceived: me.votesReceived } : null,
+    stats: me ? { correct: me.correct, answeredCount: me.answeredCount, votesReceived: me.votesReceived } : null,
     onChange: () => { /* Anzeige im Fenster aktualisiert sich selbst */ },
   });
 }

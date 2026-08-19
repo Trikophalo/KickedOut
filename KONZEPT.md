@@ -6,9 +6,17 @@
 >
 > Zwei Entscheidungen weichen bewusst ab: Antworten werden **frei getippt** statt aus vier Optionen gewählt (§1.3 und Annahme A3), und beim Voting wählt die Runde die **dümmste Antwort** statt eines Spielers mit Pflicht-Begründung (§1.4). Beides zielt auf dasselbe: Unter Zeitdruck getippte Antworten sind der eigentliche Spaß, und der Rauswurf soll daran hängen. Außerdem startet das Spiel schon **ab zwei Personen** (dann direkt als Duell) und läuft am PC in einem Fenster — Bühne und Eingabe zusammen.
 
-Ein Browser-Partyquiz für 4–9 echte Menschen in Echtzeit. Ein großer, gemeinsamer Screen (TV/Beamer/Laptop) zeigt die Show, jedes Smartphone wird zum persönlichen Buzzer. Richtige Antworten füllen den gemeinsamen Pott, falsche lassen die Kette gefrieren — und nach jeder Runde entscheidet ein anonymes Voting mit Pflicht-Begründung, wer fliegt. Kein Download, keine Accounts, keine KI-Mitspieler. Nur ein bissiger KI-Moderator, der die Rauswürfe kommentiert.
+Ein Browser-Partyquiz für 2–9 echte Menschen in Echtzeit. Ein großer, gemeinsamer Screen (TV/Beamer/Laptop) zeigt die Show, jedes Smartphone wird zum persönlichen Buzzer. Jede Antwort wird frei getippt — und nach jeder Runde entscheidet ein anonymes Voting, wessen Antwort die dümmste war und wer dafür fliegt. Kein Download, keine Accounts, keine KI-Mitspieler. Nur ein bissiger KI-Moderator, der die Rauswürfe kommentiert.
 
 ---
+
+> **Stand der Umsetzung.** Dieses Dokument ist das ursprüngliche Konzept. Das
+> gebaute Spiel hat sich an mehreren Stellen davon entfernt — die wichtigsten
+> Abweichungen: freie Texteingabe statt Antwortkarten, **kein Pott und keine
+> Ketten-Mechanik** (die Passagen dazu weiter unten sind historisch), Kategorie
+> wird vor jeder Frage gezogen statt gewählt, und das Finale entscheidet sich
+> daran, wer mehr Fragen richtig hat. Was das Spiel heute tut, steht in der
+> README.
 
 ## Inhalt
 
@@ -28,11 +36,11 @@ Ein Browser-Partyquiz für 4–9 echte Menschen in Echtzeit. Ein großer, gemein
 
 ### Pitch
 
-**KICKED OUT** ist „Der Dümmste fliegt" fürs Wohnzimmer und den Discord-Call: Alle beantworten gleichzeitig dieselben Wissensfragen, gemeinsam wird ein Pott aufgebaut — aber am Ende jeder Runde wird einer rausgewählt. Anonym. Mit Begründung. Und der KI-Moderator liest die fiesesten Begründungen genüsslich vor. Die letzten zwei duellieren sich im Finale um den Pott.
+**KICKED OUT** ist „Der Dümmste fliegt" fürs Wohnzimmer und den Discord-Call: Alle tippen gleichzeitig ihre Antwort auf dieselbe Frage — und am Ende jeder Runde wird einer rausgewählt. Anonym, allein anhand der Antworten. Der KI-Moderator liest die schönsten Fehlgriffe genüsslich vor. Die letzten zwei spielen eine letzte Runde gegeneinander; wer mehr richtig hat, gewinnt.
 
 Das Spiel lebt von drei Spannungen:
 
-1. **Kooperation vs. Verrat** — der Pott gehört allen, aber gewinnen kann nur einer.
+1. **Kooperation vs. Verrat** — man braucht die anderen, um zu lachen, und muss sie trotzdem loswerden.
 2. **Wissen vs. Taktik** — fliegt der Schwächste (er kostet Punkte) oder der Stärkste (er ist die größte Gefahr im Finale)?
 3. **Anonymität vs. Entlarvung** — die Votes sind geheim, die Begründungen werden öffentlich zelebriert.
 
@@ -41,7 +49,7 @@ Das Spiel lebt von drei Spannungen:
 1. **Look & Feel zuerst.** Jede Interaktion fühlbar: Bounce, Squash & Stretch, Konfetti, Sound, Haptik. Kein Formular-Gefühl, nirgends. Referenzrahmen: Codenames Online (Aufgeräumtheit), Gartic Phone (Verspieltheit), Make It Meme (Tempo & Frechheit).
 2. **Der große Screen ist die Bühne, das Handy ist der Buzzer.** Alles Dramatische passiert auf dem gemeinsamen Screen; das Handy zeigt nur, was ich gerade tun kann.
 3. **Immer beschäftigt, nie verloren.** Auch Rausgeflogene bleiben im Spiel (Geister-Modus). Jede Phase hat einen Timer, niemand wartet auf Nachzügler.
-4. **Drama ist choreografiert.** Rausschmiss, Kettenbruch und Finale sind inszenierte Momente mit fester Beat-Struktur (siehe §3.3), keine Statusmeldungen.
+4. **Drama ist choreografiert.** Rausschmiss, Rundenbilanz und Finale sind inszenierte Momente mit fester Beat-Struktur (siehe §3.3), keine Statusmeldungen.
 5. **Server hat immer recht.** Punkte, Timer, Votes und Lösungen leben ausschließlich serverseitig (Fairness, Anti-Cheat, Reconnect).
 6. **Fragen sind Frischware.** Kein endlicher Katalog; eine Pipeline erzeugt, prüft und rotiert laufend neue Fragen (§4).
 
@@ -50,11 +58,11 @@ Das Spiel lebt von drei Spannungen:
 | # | Annahme | Begründung |
 |---|---|---|
 | A1 | **Sprache: Deutsch first**, Architektur mehrsprachig vorbereitet | Format & Zielgruppe sind deutsch |
-| A2 | **Kein Echtgeld** — der Pott ist Punkte/Ruhm | Rechtlich & inhaltlich einfachste Lösung |
+| A2 | **Kein Echtgeld, keine Punktewährung** — es geht um Ruhm und darum, nicht der Dümmste zu sein | Rechtlich & inhaltlich einfachste Lösung |
 | A3 | **Multiple Choice (4 Optionen) als Standard**, Freitext als späterer Modus | MC ist auto-validierbar, schnell, handytauglich |
 | A4 | **Session-Ziel: 25–40 Minuten**, auch bei 9 Spielern | Party-Attention-Span; via Doppelrausschmiss geregelt |
 | A5 | **Keine Accounts im MVP** — Nickname + Avatar reichen | Einstiegshürde null, DSGVO-freundlich |
-| A6 | **Eigenständige Marke.** Wir übernehmen die Spielidee (Quiz + Kette + Rauswahl), aber keine geschützten Namen, Logos oder Catchphrases der TV-Formate. Unser Rausschmiss-Satz ist ein eigener („**Du fliegst!**"). | Formatrechte-Hygiene |
+| A6 | **Eigenständige Marke.** Wir übernehmen die Spielidee (Quiz + Rauswahl), aber keine geschützten Namen, Logos oder Catchphrases der TV-Formate. Unser Rausschmiss-Satz ist ein eigener („**Du fliegst!**"). | Formatrechte-Hygiene |
 
 ---
 
@@ -80,7 +88,7 @@ flowchart LR
 
 Der Server führt diese Phasen als strikte State Machine; jede Phase hat einen serverseitigen Timer und einen definierten Übergang. Kein Client kann Phasen erzwingen.
 
-**Ausgeschieden wird ausschließlich durch das Voting.** Punkte entscheiden nie über den Rausschmiss — sie füllen nur den gemeinsamen Pott. Deshalb ist die Rundenbilanz vor der Abstimmung keine Zierde, sondern die Grundlage: Erst wenn alle Fehlgriffe der Runde mit Namen auf der Leinwand standen, weiß die Runde, worüber sie abstimmt.
+**Ausgeschieden wird ausschließlich durch das Voting.** Es gibt keine Punkte, die über den Rausschmiss entscheiden könnten. Deshalb ist die Rundenbilanz vor der Abstimmung keine Zierde, sondern die Grundlage: Erst wenn alle Fehlgriffe der Runde auf der Leinwand standen, weiß die Runde, worüber sie abstimmt — **ohne Namen**, damit die Antwort zählt und nicht die Person. Wer was geschrieben hat, fällt erst bei der Auszählung.
 
 ### 1.2 Lobby
 
@@ -96,32 +104,29 @@ Der Server führt diese Phasen als strikte State Machine; jede Phase hat einen s
 - Start ab **2 Spielern**; alle drücken **„Bereit"** (der Bereit-Tap schaltet gleichzeitig den Audio-Kontext des Geräts frei, siehe §6.2). Der Startknopf des Gastgebers bleibt gesperrt, solange jemand fehlt. Sind alle so weit, **startet die Lobby nach 10 Sekunden von selbst** — ein erneuter Klick auf „Bereit" hält den Countdown wieder an.
 - Late-Joiner nach Spielstart landen automatisch im **Geister-Modus** (Zuschauer, §1.6) und spielen bei der Revanche mit.
 
-### 1.3 Fragerunde: Kette & Pott
+### 1.3 Fragerunde: tippen, was man weiß
 
-**Ablauf pro Runde:** Kategorien-Roulette (2 s Animation) → 7 Fragen im Schnellfeuer-Gefühl. Jede Frage:
+**Ablauf pro Runde:** Kategorie-Walze vor **jeder** Frage (2,6 s) → so viele Fragen, wie die Lobby eingestellt hat (2 bis 8, Standard 5). Jede Frage:
 
-1. Frage + 4 Antwortkarten erscheinen auf dem großen Screen; die Handys zeigen dieselben 4 Antworten als große Buttons.
-2. **Alle antworten simultan.** Timer läuft (Standard 25 s, in der Lobby von 10 s bis 1 min einstellbar). Sobald **alle** eingeloggt haben, geht es sofort weiter — das erzeugt das Schnellfeuer-Tempo, ohne dass Runden unplanbar lang werden.
-3. **Reveal (4 s):** richtige Antwort leuchtet auf, Avatare aller Spieler springen auf die Option, die sie gewählt haben (Kahoot-artige Verteilung — man sieht sofort, *wer* „Sydney" für Australiens Hauptstadt hielt). Pott tickt hoch, Kette reagiert.
-4. Nicht beantwortet (Timeout/Disconnect) zählt als falsch.
+1. Die Frage erscheint auf dem großen Screen; die Handys zeigen ein Eingabefeld.
+2. **Alle tippen simultan.** Timer läuft (Standard 25 s, in der Lobby von 10 s bis 1 min einstellbar). Getippt ist nicht abgeschickt: Erst Enter oder „Abschicken" gibt die Antwort ab, und nur wenn **alle** abgeschickt haben, geht es sofort weiter.
+3. **Reveal (4 s):** Die richtige Lösung leuchtet auf, darunter alle Antworten der Runde — **ohne Namen**, denn über genau diese wird gleich abgestimmt.
+4. Nicht abgeschickt heißt nicht verloren: Was im Feld steht, zählt beim Ablauf der Zeit mit. Gar nichts geschrieben zählt als falsch.
 
 **Die Mechanik (Herzstück, bewusst simpel und bühnentauglich):**
 
-- Jede Frage hat einen **Basiswert** nach Schwierigkeit und Rundennummer (siehe Tabelle unten).
-- **Pott:** Jede richtige Antwort zahlt `Basiswert × Ketten-Multiplikator` in den gemeinsamen Pott ein.
-- **Kette (Multiplikator ×1 bis ×5):** Beantworten **alle** Spieler eine Frage richtig („Perfekte Frage"), wird ein glühendes Kettenglied geschmiedet: Multiplikator +1. **Eine einzige falsche Antwort friert die Kette ein**: Eis-Overlay, Splitter-Sound, Multiplikator zurück auf ×1 — und alle sehen, wer der Kettenbrecher war.
-- Der Pott ist der **Preis fürs Finale**: Wer gewinnt, „nimmt den Pott mit" (Punkte für die Lobby-/Stammtisch-Rangliste und pure Angeberei; Pott-Höhe steuert außerdem die Konfettimenge im Siegerscreen).
-- **Individuelle Statistik** läuft unsichtbar mit: Trefferquote, Ø-Antwortzeit, Kettenbrüche, eingezahlte Punkte. Sie füttert Voting-Kontext, Moderator-Sprüche, Awards und Recap.
+- Es gibt **keine Punkte und keine Währung**. Gezählt wird nur, wer wie viele Fragen richtig hatte — und das entscheidet allein das Finale, nie den Rausschmiss.
+- **Individuelle Statistik** läuft unsichtbar mit: Trefferquote, Ø-Antwortzeit, Fehlgriffe, erhaltene Stimmen. Sie füttert Voting-Kontext, Moderator-Sprüche, Awards und Recap.
 
-**Werte-Rampe & Pacing** (Ziel: jede Runde ≈ 3–3,5 Min., Session gesamt 25–40 Min.):
+**Schwierigkeits-Rampe & Pacing** (Ziel: jede Runde ≈ 3–3,5 Min., Session gesamt 25–40 Min.):
 
-| Runde | Basiswert leicht/mittel/schwer | Schwierigkeits-Mix | Timer |
-|---|---|---|---|
-| 1 | 100 / 150 / 200 | 70 % / 25 % / 5 % | 10 s |
-| 2 | 150 / 200 / 300 | 55 % / 35 % / 10 % | 10 s |
-| 3 | 200 / 300 / 400 | 40 % / 40 % / 20 % | 9 s |
-| 4 | 250 / 400 / 550 | 25 % / 45 % / 30 % | 8 s |
-| 5 | 300 / 500 / 700 | 15 % / 45 % / 40 % | 8 s |
+| Runde | Schwierigkeits-Mix leicht/mittel/schwer |
+|---|---|
+| 1 | 70 % / 25 % / 5 % |
+| 2 | 55 % / 35 % / 10 % |
+| 3 | 40 % / 40 % / 20 % |
+| 4 | 25 % / 45 % / 30 % |
+| 5 | 15 % / 45 % / 40 % |
 
 **Rundenanzahl nach Spielerzahl** (Doppelrausschmiss hält lange Abende kurz):
 

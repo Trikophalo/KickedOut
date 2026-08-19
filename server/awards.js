@@ -18,14 +18,15 @@ const AWARDS = [
     },
   },
   {
-    key: 'kettensaege',
-    label: 'Kettensäge',
-    icon: '🪚',
-    hint: 'Meiste Kettenbrüche',
+    key: 'danebengriff',
+    label: 'Danebengriff',
+    icon: '🥴',
+    hint: 'Meiste falsche Antworten',
     pick: (players) => {
-      const worst = players.reduce((a, b) => (a.chainBreaks >= b.chainBreaks ? a : b));
-      if (!worst || worst.chainBreaks < 1) return null;
-      return { id: worst.id, detail: `${worst.chainBreaks}× die Kette gesprengt` };
+      const eligible = players.filter((p) => p.answered - p.correct > 0);
+      if (!eligible.length) return null;
+      const worst = eligible.reduce((a, b) => ((a.answered - a.correct) >= (b.answered - b.correct) ? a : b));
+      return { id: worst.id, detail: `${worst.answered - worst.correct}× danebengetippt` };
     },
   },
   {
@@ -96,7 +97,7 @@ export function computeAwards(players) {
  */
 export function buildRecap(moments, maxItems = 6) {
   const priority = {
-    chainPeak: 10, closestVote: 9, tiebreak: 8, matchPoint: 7,
+    closestVote: 9, tiebreak: 8,
     perfectRound: 6, bigBreak: 5, reason: 4, comeback: 3,
   };
   // Zwei Momente mit identischer Überschrift lesen sich wie ein Fehler,

@@ -494,3 +494,31 @@
 /* Richtige Antworten in der Duell-Nachlese bleiben erkennbar. */
 .shamecard.right { border-color: var(--mint); }
 .shamecard.right .said { color: var(--mint-soft); }
+
+/* ============================================================
+   Der Stimmzettel: helle Karten, große Schrift — hier wird gelesen
+   und gelacht, nicht überflogen.
+   ============================================================ */
+
+.answercard {
+  background: var(--card); color: var(--ink);
+  border: 2px solid rgba(20, 16, 46, 0.12);
+  padding: 0.8rem 1rem; border-radius: 16px;
+}
+.answercard .said { font-size: 1.12rem; }
+.answercard .said.blank { color: rgba(20, 16, 46, 0.55); }
+.answercard .ctx { color: rgba(20, 16, 46, 0.62); font-size: 0.78rem; }
+.answercard .mark { color: var(--ink); }
+.answercard.on { border-color: var(--vote); background: #fff; }
+.answercard.mine { opacity: 0.45; }
+@media (hover: hover) and (pointer: fine) {
+  .answercard:hover:not(:disabled) {
+    background: #fff; border-color: var(--vote-soft); transform: translateY(-2px);
+  }
+}
+
+@media (min-width: 960px) {
+  .ballot { max-width: 42rem; }
+  .answercard .said { font-size: 1.25rem; }
+  .answercard .ctx { font-size: 0.82rem; }
+}

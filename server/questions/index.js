@@ -207,7 +207,7 @@ export class QuestionService {
   createBatch({ groupId, categories, rounds }) {
     const active = categories.filter((c) => CATEGORIES[c]);
     const cats = active.length ? active : Object.keys(CATEGORIES);
-    const need = (rounds + 2) * CONFIG.questionsPerRound + CONFIG.finale.maxQuestions;
+    const need = (rounds + 3) * CONFIG.questionsPerRoundRange.max;
     const target = need * 3;
 
     const group = this.groupRecord(groupId);

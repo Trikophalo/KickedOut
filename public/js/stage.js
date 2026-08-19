@@ -7,7 +7,7 @@
 
 import { Net } from './net.js';
 import { audio } from './audio.js';
-import { fx, shake, countUp, setBackgroundMood } from './fx.js';
+import { fx, shake, setBackgroundMood } from './fx.js';
 import { $, el, avatarEl, applyAccent, Countdown, toast, CATEGORY_META, formatMs, spinCategory } from './ui.js';
 import { openSettings, closeSettings, settingsOpen, loadPrefs } from './settings.js';
 import { drawQR } from './qr.js';
@@ -20,7 +20,6 @@ const countdown = new Countdown(onTick);
 let state = null;
 let previous = null;
 let sceneKey = null;
-let lastPot = 0;
 let voteTimers = [];
 let joinUrl = '';
 
@@ -106,17 +105,10 @@ function onFx(name, data = {}) {
     case 'gameStart': audio.play('gameStart'); fx.confetti({ count: 60 }); break;
     case 'roundIntro': audio.play('ready'); break;
     case 'questionIn': audio.play('questionIn'); break;
-    case 'reveal': audio.play('correct'); audio.play('coins', { n: 7 }); break;
-    case 'chainForged':
-      audio.play('forge', { chain: data.chain });
-      fx.sparks({ x: 120, y: 70, count: 34 });
-      break;
-    case 'chainBreak':
-      audio.play('freeze');
-      fx.frost(1500);
-      setBackgroundMood('frost');
-      setTimeout(() => setBackgroundMood(null), 1600);
-      shake($('#stage'), 0.7);
+    case 'reveal': audio.play('correct'); break;
+    case 'allCorrect':
+      audio.play('forge', { chain: 3 });
+      fx.sparks({ x: innerWidth / 2, y: innerHeight / 2, count: 34 });
       break;
     case 'allWrong': audio.play('allWrong'); break;
     case 'perfectRound': audio.play('fanfare'); fx.confetti({ count: 90 }); break;
@@ -130,16 +122,12 @@ function onFx(name, data = {}) {
       setTimeout(() => audio.play('ghost'), 2600);
       break;
     case 'finalIntro': audio.play('versus'); shake($('#stage'), 1); fx.confetti({ count: 40 }); break;
-    case 'finalDraft': audio.play('questionIn'); break;
+    case 'finalRecap': audio.play('cardFlap'); break;
     case 'finalPoint': audio.play('finalPoint'); fx.sparks({ x: innerWidth / 2, y: innerHeight / 2, count: 30 }); break;
-    case 'matchPoint':
-      audio.play('matchPoint');
-      setBackgroundMood('danger');
-      break;
     case 'victory':
       setBackgroundMood('gold');
       audio.play('fanfare');
-      fx.cannons(Math.min(2.2, 0.7 + (data.pot || 0) / 9000));
+      fx.cannons(1.6);
       break;
     default: break;
   }
@@ -177,22 +165,22 @@ function sortedFinalAnswers() {
   return (state.finalRecap || []).slice().sort((a, b) => rank(a) - rank(b) || a.no - b.no);
 }
 
+// Ohne Namen: Bei Gleichstand wird gleich darüber abgestimmt.
 function finalRow(entry, i) {
-  const who = byId(entry.playerId);
   return el('div', { class: 'shamerow', style: { animationDelay: `${i * 70}ms` } },
-    avatarEl(who || { nick: '?' }, { size: 40 }),
     el('span', { class: 'said' }, entry.empty ? '… nichts geschrieben' : `„${entry.text}“`),
     el('span', { class: 'ctx' }, `${entry.question} — richtig war ${entry.answer}`),
-    el('span', { class: 'who' }, who?.nick || '?'));
+    el('span', { class: 'who' }, entry.correct ? '✓' : '✗'));
 }
 
+/** Beim Wählen ohne Urheber, bei der Auszählung mit — dann fällt der Name. */
 function finalCard(card, i, votes = null) {
-  const who = byId(card.playerId);
+  const who = card.playerId ? byId(card.playerId) : null;
   return el('div', {
     class: `finalcard${votes ? ' on' : ''}`, style: { animationDelay: `${i * 120}ms` },
   },
-  avatarEl(who || { nick: '?' }, { size: 64 }),
-  el('span', { class: 'who' }, who?.nick || '?'),
+  who ? avatarEl(who, { size: 64 }) : null,
+  who ? el('span', { class: 'who' }, who.nick) : null,
   el('span', { class: `said${card.empty ? ' blank' : ''}` }, card.empty ? '… nichts geschrieben' : `„${card.text}“`),
   el('span', { class: 'ctx' }, `${card.question} — richtig war ${card.answer}`),
   votes === null ? null : el('span', { class: 'tallynum' }, `${votes}`));
@@ -219,34 +207,6 @@ function keyFor(s) {
 }
 
 function updateHud() {
-  // Der Pott rattert hoch, statt zu springen — das Münz-Geratter aus der
-  // Trigger-Matrix hängt genau an dieser Bewegung.
-  const pot = $('#pot');
-  const potNum = $('#potNum');
-  if (state.pot !== lastPot) {
-    countUp(potNum, lastPot, state.pot, 800);
-    pot.classList.add('bump');
-    setTimeout(() => pot.classList.remove('bump'), 400);
-    lastPot = state.pot;
-  } else {
-    potNum.textContent = state.pot.toLocaleString('de-DE');
-  }
-
-  // Multiplikator ×1 heißt: noch kein Glied geschmiedet. Bei chainMax 5
-  // gibt es darum genau vier Schmiedeplätze.
-  const chain = $('#chain');
-  const slots = state.chainMax - 1;
-  if (chain.children.length !== slots) {
-    chain.replaceChildren(...Array.from({ length: slots }, () => el('span', { class: 'link' })));
-  }
-  const broken = state.reveal?.chainBroken;
-  [...chain.children].forEach((link, i) => {
-    const lit = i < state.chain - 1;
-    const wasLit = broken && i < state.reveal.chainBefore - 1;
-    link.className = `link${lit ? ' on' : wasLit ? ' ice' : ''}`;
-  });
-  $('#chainLabel').textContent = `×${state.chain}`;
-
   $('#roundChip').textContent = state.phase === 'lobby' ? 'Lobby'
     : state.final ? 'FINALE'
       : state.round ? `Runde ${state.round}/${state.roundTotal}` : '…';
@@ -359,7 +319,7 @@ const BUILDERS = {
     scene.append(
       el('p', { class: 'subline rise' }, `Runde ${state.round} von ${spec}`),
       el('h1', { class: 'headline rise' }, roulette()),
-      el('p', { class: 'subline rise' }, `${state.players.filter((p) => p.alive).length} Spieler · Kette steht auf ×${state.chain}`),
+      el('p', { class: 'subline rise' }, `${state.players.filter((p) => p.alive).length} Spieler sind noch dabei`),
     );
   },
 
@@ -402,16 +362,12 @@ const BUILDERS = {
     // anders als el(). Also vorher aussieben.
     const parts = [
       el('h1', { class: 'headline small rise' }, spoken.length ? 'Die Ausbeute der Runde' : `Runde ${state.round} ist durch`),
-      el('p', { class: 'potflash' }, `Pott: ${state.pot.toLocaleString('de-DE')}`),
       show.length
-        ? el('div', { class: 'shame rise' }, ...show.map((entry, i) => {
-          const who = byId(entry.playerId);
-          return el('div', { class: 'shamerow', style: { animationDelay: `${i * 70}ms` } },
-            avatarEl(who || { nick: '?' }, { size: 40 }),
-            el('span', { class: 'said' }, `„${entry.text}“`),
-            el('span', { class: 'ctx' }, `${entry.question} — richtig war ${entry.answer}`),
-            el('span', { class: 'who' }, who?.nick || '?'));
-        }))
+        ? el('div', { class: 'shame rise' }, ...show.map((entry, i) => el('div', {
+          class: 'shamerow anon', style: { animationDelay: `${i * 70}ms` },
+        },
+        el('span', { class: 'said' }, `„${entry.text}“`),
+        el('span', { class: 'ctx' }, `${entry.question} — richtig war ${entry.answer}`))))
         : el('p', { class: 'subline rise' }, 'Keine einzige falsche Antwort. Ihr seid unheimlich.'),
       spoken.length > show.length
         ? el('p', { class: 'subline' }, `… und ${spoken.length - show.length} weitere Fehlgriffe.`)
@@ -426,11 +382,10 @@ const BUILDERS = {
 
   tiebreak() {
     const parts = state.tiebreak.participants.map(byId);
-    const sudden = state.tiebreak.mode === 'suddenDeath';
     scene.append(
-      el('h1', { class: 'headline small rise' }, sudden ? '💥 Sudden Death' : '⚡ Blitz-Stechen'),
+      el('h1', { class: 'headline small rise' }, '⚡ Blitz-Stechen'),
       el('div', { class: 'qcard' }, state.tiebreak.question.text),
-      el('p', { class: 'subline' }, sudden ? 'Wer näher dran ist, nimmt den Pott.' : 'Wer näher dran ist, bleibt.'),
+      el('p', { class: 'subline' }, 'Wer näher dran ist, bleibt.'),
       el('div', { class: 'guessrow rise' }, ...parts.map((p) => el('div', { class: 'guessbox' },
         avatarEl(p, { size: 64 }),
         el('span', { class: 'name display' }, p.nick),
@@ -439,8 +394,7 @@ const BUILDERS = {
   },
 
   tiebreak_reveal() {
-    const { question, results, answer, mode } = state.tiebreak;
-    const sudden = mode === 'suddenDeath';
+    const { question, results, answer } = state.tiebreak;
     scene.append(
       el('h1', { class: 'headline small' }, question.text),
       el('p', { class: 'potflash' }, `Richtig: ${answer?.toLocaleString('de-DE')} ${question.unit || ''}`),
@@ -453,9 +407,7 @@ const BUILDERS = {
           el('span', { class: 'delta' }, r.guess == null ? 'keine Antwort'
             : `${Math.round(r.delta).toLocaleString('de-DE')} daneben`));
       })),
-      el('p', { class: 'subline rise' }, sudden
-        ? (results?.length ? `${byId(results[0].id)?.nick} ist näher dran.` : '')
-        : 'Wer am weitesten daneben liegt, fliegt.'),
+      el('p', { class: 'subline rise' }, 'Wer am weitesten daneben liegt, fliegt.'),
     );
   },
 
@@ -495,7 +447,7 @@ const BUILDERS = {
   final_intro() {
     const [a, b] = state.final.players.map(byId);
     scene.append(
-      el('p', { class: 'subline' }, `Es geht um ${state.pot.toLocaleString('de-DE')} Punkte`),
+      el('p', { class: 'subline' }, `Eine letzte Runde — wer mehr richtig hat, gewinnt`),
       el('div', { class: 'versus' },
         el('div', { class: 'finalist crashL' }, avatarEl(a, { size: 130 }), el('span', { class: 'name' }, a.nick)),
         el('div', { class: 'vs' }, 'VS'),
@@ -563,7 +515,7 @@ const BUILDERS = {
           el('div', { class: 'crown' }, '👑'),
           avatarEl(winner, { size: 150 }),
           el('h1', { class: 'headline' }, winner.nick),
-          el('p', { class: 'potflash' }, `nimmt ${r.pot.toLocaleString('de-DE')} Punkte mit`))
+          el('p', { class: 'potflash' }, 'hatte am Ende die meisten richtig'))
         : el('h1', { class: 'headline' }, 'Niemand hat es geschafft.'),
       el('div', { class: 'awards' }, ...r.awards.map((a, i) => {
         const who = a.id ? byId(a.id) : null;
@@ -688,9 +640,7 @@ function buildQuestion(isFinal = false) {
 
   scene.append(
     isFinal ? finalScore() : el('div', { class: 'qmeta' },
-      el('span', { class: 'chip' }, `Frage ${q.index + 1}/${q.total}`),
-      el('span', { class: 'chip' }, `${q.value} Punkte`),
-      state.chain > 1 ? el('span', { class: 'chip', style: { background: 'var(--gold)', color: 'var(--ink)' } }, `×${state.chain}`) : null),
+      el('span', { class: 'chip' }, `Frage ${q.index + 1}/${q.total}`)),
     el('div', { class: 'qcard' }, q.text),
     el('div', { class: 'answerwall typing', id: 'answerWall' }),
     el('div', { id: 'revealSlot', style: { minHeight: '2.4rem' } }),
@@ -725,31 +675,26 @@ function syncAnswers() {
     slot.append(el('div', { class: 'solutionline' }, `Richtig war: ${reveal.answer}`));
     if (reveal.final) {
       slot.append(el('div', { class: 'potflash' }, reveal.final.reason));
-    } else if (reveal.potDelta > 0) {
-      slot.append(el('div', { class: 'potflash' },
-        `+${reveal.potDelta.toLocaleString('de-DE')} in den Pott${reveal.chainForged ? ` · Kette auf ×${reveal.chainAfter}` : ''}`));
     } else {
-      slot.append(el('div', { class: 'potflash zero' },
-        reveal.chainBroken ? '🥶 Die Kette ist eingefroren' : 'Nichts für den Pott.'));
+      const good = reveal.correctCount || 0;
+      slot.append(el('div', { class: `potflash${good ? '' : ' zero'}` },
+        good ? `${good} von ${reveal.total} richtig` : 'Niemand. Wirklich niemand.'));
     }
   }
 
   if (wall.dataset.revealed === '1') return;
   wall.dataset.revealed = '1';
   wall.className = 'answerwall';
-  wall.replaceChildren(...pool.map((p, i) => {
-    const entry = reveal.perPlayer?.[p.id] || {};
-    const card = el('div', {
-      class: `saidcard ${entry.correct ? 'right' : 'wrong'}`,
-      style: { animationDelay: `${i * 90}ms` },
-    },
-    avatarEl({ ...p, alive: true }, { size: 40 }),
-    el('div', { class: 'body' },
-      el('span', { class: `text${entry.empty ? ' blank' : ''}` }, entry.empty ? '… nichts' : `„${entry.text}“`),
-      el('span', { class: 'who' }, p.nick)),
-    el('span', { class: 'verdict' }, entry.correct ? '✓' : '✗'));
-    return card;
-  }));
+  // Ohne Namen: Gleich wird über die dümmste Antwort abgestimmt, und das soll
+  // eine Wahl über die Antwort sein, nicht über die Person.
+  const shown = reveal.answers || Object.values(reveal.perPlayer || {});
+  wall.replaceChildren(...shown.map((entry, i) => el('div', {
+    class: `saidcard ${entry.correct ? 'right' : 'wrong'}`,
+    style: { animationDelay: `${i * 90}ms` },
+  },
+  el('div', { class: 'body' },
+    el('span', { class: `text${entry.empty ? ' blank' : ''}` }, entry.empty ? '… nichts geschrieben' : `„${entry.text}“`)),
+  el('span', { class: 'verdict' }, entry.correct ? '✓' : '✗'))));
 }
 
 function buildVoting() {
@@ -827,7 +772,7 @@ function finalScore() {
   const [aId, bId] = state.final.players;
   const a = byId(aId);
   const b = byId(bId);
-  const target = state.final.winScore;
+  const target = state.final.questions;
   const knot = (kind, n, total) => Array.from({ length: total }, (_, i) =>
     el('span', { class: `knot${i < n ? ` ${kind}` : ''}` }));
   return el('div', { class: 'versus', style: { gap: '1.2rem' } },
@@ -843,12 +788,11 @@ function scoreTable(rows) {
   return el('table', { class: 'scoretable' },
     el('thead', {}, el('tr', {},
       el('th', {}, 'Spieler'), el('th', {}, 'Richtig'), el('th', {}, 'Ø Zeit'),
-      el('th', {}, 'Eingezahlt'), el('th', {}, 'Kette'), el('th', {}, 'Raus'))),
+      el('th', {}, 'Daneben'), el('th', {}, 'Raus'))),
     el('tbody', {}, ...rows.map((r) => el('tr', {},
       el('td', {}, el('div', { class: 'who' }, avatarEl(r, { size: 26 }), r.nick)),
       el('td', { class: 'tabular' }, `${r.correct}/${r.answered}`),
       el('td', { class: 'tabular' }, formatMs(r.avgMs)),
-      el('td', { class: 'tabular' }, r.contributed.toLocaleString('de-DE')),
-      el('td', { class: 'tabular' }, r.chainBreaks ? `${r.chainBreaks}×` : '–'),
+      el('td', { class: 'tabular' }, `${r.answered - r.correct}`),
       el('td', {}, r.eliminatedRound ? `Runde ${r.eliminatedRound}` : '🏁')))));
 }
