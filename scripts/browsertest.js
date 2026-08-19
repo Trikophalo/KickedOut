@@ -353,8 +353,10 @@ async function main() {
       }
     }
 
-    if (phase === 'final_intro' && !sawFinale) {
-      await sleep(600);
+    // Die Intro-Phase ist kurz; wenn die Schleife gerade fotografiert hat,
+    // rutscht sie daran vorbei. Dann tut es das erste Duellbild auch.
+    if (!sawFinale && (phase === 'final_intro' || phase === 'final_question')) {
+      await sleep(phase === 'final_intro' ? 600 : 200);
       await shot(stage, '11-buehne-finale');
       sawFinale = true;
     }
