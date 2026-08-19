@@ -429,3 +429,42 @@ body[data-phase="lobby"] .rail .players { visibility: hidden; }
   font-family: var(--font-display); font-weight: 800;
   font-size: clamp(0.8rem, 1.8vh, 1.05rem); color: var(--coral-deep);
 }
+
+/* ============================================================
+   Finale: die zwei Karten, über die die Zuschauer abstimmen.
+   ============================================================ */
+
+.finalcards {
+  display: flex; gap: clamp(1rem, 3vw, 2.4rem);
+  justify-content: center; flex-wrap: wrap; width: min(100%, 62rem);
+}
+.finalcard {
+  flex: 1 1 20rem; max-width: 26rem;
+  display: grid; justify-items: center; gap: 0.35rem;
+  padding: clamp(0.9rem, 2.4vh, 1.5rem) 1.2rem;
+  border-radius: 24px; text-align: center;
+  background: var(--card); color: var(--ink); border: 3px solid var(--line);
+  box-shadow: var(--shadow-card);
+  animation: riseIn 420ms cubic-bezier(.2,1.3,.4,1) both;
+  position: relative;
+}
+.finalcard.on { border-color: var(--vote); outline: 4px solid var(--vote-soft); }
+.finalcard .who {
+  font-family: var(--font-display); font-weight: 800;
+  font-size: clamp(0.9rem, 2vh, 1.2rem); color: var(--coral-deep);
+}
+.finalcard .said {
+  font-family: var(--font-display); font-weight: 800;
+  font-size: clamp(1.1rem, 3vh, 1.8rem); overflow-wrap: anywhere;
+}
+.finalcard .said.blank { color: var(--ink-soft); font-style: italic; font-weight: 600; }
+.finalcard .ctx {
+  font-size: clamp(0.7rem, 1.5vh, 0.9rem); color: var(--ink-soft); overflow-wrap: anywhere;
+}
+.finalcard .tallynum {
+  position: absolute; top: -0.7rem; right: -0.7rem;
+  min-width: 2.2rem; padding: 0.15rem 0.5rem; border-radius: 999px;
+  background: var(--vote); color: #fff;
+  font-family: var(--font-display); font-weight: 800; font-size: 1.1rem;
+  box-shadow: var(--shadow);
+}

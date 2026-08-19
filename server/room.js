@@ -22,6 +22,9 @@ export const PHASES = {
   FINAL_INTRO: 'final_intro',
   FINAL_QUESTION: 'final_question',
   FINAL_REVEAL: 'final_reveal',
+  FINAL_RECAP: 'final_recap',
+  FINAL_VOTE: 'final_vote',
+  FINAL_VOTE_REVEAL: 'final_vote_reveal',
   RESULTS: 'results',
 };
 
@@ -64,6 +67,9 @@ export class Room {
     this.pending = null;
     this.pendingFinal = false;
     this.roundRecap = [];
+    this.finalAnswers = [];
+    this.finalBallot = [];
+    this.finalVoteResult = null;
     this.timer = null;
 
     this.round = 0;
@@ -336,6 +342,9 @@ export class Room {
   }
 
   onVote(player, msg) {
+    // Im Finale stimmen ausschließlich die Zuschauer ab — die zwei auf der
+    // Bühne stimmen nicht über sich selbst ab.
+    if (this.phase === PHASES.FINAL_VOTE) return this.onFinalVote(player, msg);
     if (!player || !player.alive || this.phase !== PHASES.VOTING) return;
     const card = this.ballot.find((c) => c.id === msg.ballotId);
     // Für die eigene Antwort zu stimmen wäre entweder Selbstmord oder Taktik —
@@ -356,6 +365,17 @@ export class Room {
     this.broadcast();
     if (this.tiebreak.participants.every((pid) => this.players.get(pid)?.guess != null)) {
       this.setPhaseTimer(1200);
+    }
+  }
+
+  onFinalVote(player, msg) {
+    if (!player || player.alive || !player.connected) return;
+    const card = this.finalBallot.find((c) => c.id === msg.ballotId);
+    if (!card) return;
+    player.vote = { ballotId: card.id, targetId: card.playerId, at: now() };
+    this.broadcast();
+    if (this.spectators.every((p) => p.vote)) {
+      this.setPhaseTimer(Math.min(scaled(2000), this.remainingMs()));
     }
   }
 
@@ -501,6 +521,9 @@ export class Room {
       case PHASES.FINAL_INTRO:      return this.drawFinalCategory();
       case PHASES.FINAL_QUESTION:   return this.revealFinalAnswer();
       case PHASES.FINAL_REVEAL:     return this.afterFinalReveal();
+      case PHASES.FINAL_RECAP:      return this.afterFinalRecap();
+      case PHASES.FINAL_VOTE:       return this.closeFinalVote();
+      case PHASES.FINAL_VOTE_REVEAL: return this.afterFinalVoteReveal();
       default:                      return undefined;
     }
   }
@@ -1053,6 +1076,15 @@ export class Room {
       });
     }
 
+    // Jede Duell-Antwort wandert in die Sammlung — am Ende kommt sie noch
+    // einmal auf die Leinwand, damit es etwas zu lachen gibt.
+    for (const [pid, r] of [[aId, ra], [bId, rb]]) {
+      this.finalAnswers.push({
+        playerId: pid, no: this.final.questionNo, question: q.text,
+        answer: q.answer, text: r.text, correct: r.right, empty: r.empty,
+      });
+    }
+
     this.final.lastPoint = { winner, reason, ms: { [aId]: ra.ms, [bId]: rb.ms } };
     this.reveal = {
       answer: q.answer,
@@ -1079,8 +1111,9 @@ export class Room {
   afterFinalReveal() {
     const [aId, bId] = this.final.players;
     const target = CONFIG.finale.winScore;
-    if (this.final.scores[aId] >= target) return this.showResults(this.players.get(aId));
-    if (this.final.scores[bId] >= target) return this.showResults(this.players.get(bId));
+    // Auch der klare Sieg geht über die Nachlese — die Antworten der zwei
+    // sind der Schlussgag, den soll niemand verpassen.
+    if (this.final.scores[aId] >= target || this.final.scores[bId] >= target) return this.finishFinale();
 
     if (this.final.questionNo >= CONFIG.finale.maxQuestions) return this.finishFinale();
 
@@ -1094,13 +1127,106 @@ export class Room {
     return this.drawFinalCategory();
   }
 
-  /** Sudden Death, wenn nach dem regulären Duell kein Sieger feststeht. */
+  /**
+   * Bevor gekrönt wird, kommt alles noch einmal auf den Tisch, was die zwei
+   * geschrieben haben. Das ist der Lacher zum Schluss — und bei Gleichstand
+   * die Grundlage für die Abstimmung der Zuschauer.
+   */
   finishFinale() {
+    this.current = null;
+    this.reveal = null;
+    this.enter(PHASES.FINAL_RECAP, scaled(CONFIG.timing.finalRecap));
+    this.say('finalRecap');
+    this.fx('finalRecap');
+  }
+
+  /** Wer sitzt draußen und schaut zu? Nur die dürfen bei Gleichstand wählen. */
+  get spectators() {
+    return [...this.players.values()].filter((p) => !p.alive && p.connected);
+  }
+
+  afterFinalRecap() {
     const [aId, bId] = this.final.players;
     if (this.final.scores[aId] !== this.final.scores[bId]) {
       const winner = this.final.scores[aId] > this.final.scores[bId] ? aId : bId;
       return this.showResults(this.players.get(winner));
     }
+    // Gleichstand: Die Zuschauer entscheiden über die dümmste Antwort.
+    // Gibt es keine — etwa im Duell zu zweit —, bleibt die Schätzfrage.
+    if (this.spectators.length) return this.startFinalVote();
+    return this.startTiebreak(this.final.players, 1, [], 'suddenDeath');
+  }
+
+  /**
+   * Pro Finalist eine Karte: bevorzugt die falsche, nicht leere Antwort.
+   * Anonym wäre hier sinnlos — bei zwei Leuten weiß jeder, wer was schrieb.
+   */
+  buildFinalBallot() {
+    const rank = (entry) => (entry.empty ? 1 : entry.correct ? 2 : 0);
+    return shuffle(this.final.players.map((pid) => {
+      const mine = this.finalAnswers.filter((a) => a.playerId === pid);
+      const best = mine.length
+        ? shuffle(mine).sort((a, b) => rank(a) - rank(b))[0]
+        : { question: '—', text: '', answer: '', correct: false, empty: true };
+      return { id: newId('f-'), playerId: pid, ...best };
+    }));
+  }
+
+  startFinalVote() {
+    for (const player of this.players.values()) player.vote = null;
+    this.finalBallot = this.buildFinalBallot();
+    this.finalVoteResult = null;
+    this.say('finalVote', { count: this.spectators.length });
+    this.enter(PHASES.FINAL_VOTE, scaled(CONFIG.timing.finalVote));
+    this.fx('votingOpen');
+  }
+
+  closeFinalVote() {
+    const voters = this.spectators.filter((p) => p.vote);
+    const perCard = new Map(this.finalBallot.map((c) => [c.id, 0]));
+    const tally = new Map(this.final.players.map((pid) => [pid, 0]));
+    for (const voter of voters) {
+      perCard.set(voter.vote.ballotId, (perCard.get(voter.vote.ballotId) || 0) + 1);
+      tally.set(voter.vote.targetId, (tally.get(voter.vote.targetId) || 0) + 1);
+    }
+
+    const [aId, bId] = this.final.players;
+    const loser = tally.get(aId) === tally.get(bId)
+      ? null
+      : (tally.get(aId) > tally.get(bId) ? aId : bId);
+
+    this.finalVoteResult = {
+      tally: Object.fromEntries(tally),
+      cards: this.finalBallot.map((c) => ({
+        id: c.id, playerId: c.playerId, question: c.question,
+        text: c.text, answer: c.answer, correct: c.correct, empty: c.empty,
+        votes: perCard.get(c.id) || 0,
+      })).sort((a, b) => b.votes - a.votes),
+      loser,
+      winner: loser ? this.final.players.find((pid) => pid !== loser) : null,
+      voters: voters.length,
+      spectators: this.spectators.length,
+    };
+
+    this.say('voteReveal');
+    this.enter(PHASES.FINAL_VOTE_REVEAL, scaled(CONFIG.timing.finalVoteReveal));
+    this.fx('voteReveal', { count: this.finalBallot.length });
+  }
+
+  afterFinalVoteReveal() {
+    const result = this.finalVoteResult;
+    if (result?.winner) {
+      const loser = this.players.get(result.loser);
+      if (loser) {
+        this.moments.push({
+          kind: 'reason',
+          title: 'Von den Zuschauern abgesägt',
+          detail: `${loser.nick}: „${result.cards.find((c) => c.playerId === result.loser)?.text || '—'}“`,
+        });
+      }
+      return this.showResults(this.players.get(result.winner));
+    }
+    // Auch die Zuschauer waren sich nicht einig — dann entscheidet die Schätzfrage.
     return this.startTiebreak(this.final.players, 1, [], 'suddenDeath');
   }
 
@@ -1158,6 +1284,9 @@ export class Room {
     this.pending = null;
     this.pendingFinal = false;
     this.roundRecap = [];
+    this.finalAnswers = [];
+    this.finalBallot = [];
+    this.finalVoteResult = null;
     this.round = 0;
     this.pot = 0;
     this.chain = 1;
@@ -1277,6 +1406,20 @@ export class Room {
         pool: this.settings.categories,
       } : null,
       recap: this.phase === PHASES.ROUND_END ? this.roundRecap : null,
+      // Die Sammlung des Duells: am Ende für alle, während der Abstimmung
+      // als Grundlage, im Ergebnis als Nachlese.
+      finalRecap: [PHASES.FINAL_RECAP, PHASES.FINAL_VOTE, PHASES.FINAL_VOTE_REVEAL].includes(this.phase)
+        ? this.finalAnswers : null,
+      finalVote: this.phase === PHASES.FINAL_VOTE ? {
+        ballot: this.finalBallot.map((c) => ({
+          id: c.id, playerId: c.playerId, question: c.question,
+          text: c.text, answer: c.answer, correct: c.correct, empty: c.empty,
+          mine: viewer ? c.playerId === viewer.id : false,
+        })),
+        voted: this.spectators.filter((p) => p.vote).length,
+        total: this.spectators.length,
+      } : null,
+      finalVoteResult: this.phase === PHASES.FINAL_VOTE_REVEAL ? this.finalVoteResult : null,
       // Die Lösung verlässt den Server erst im Reveal — vorher existiert sie
       // für keinen Client, auch nicht für die Bühne.
       reveal: this.reveal,

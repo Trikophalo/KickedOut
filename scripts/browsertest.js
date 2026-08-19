@@ -198,6 +198,8 @@ async function main() {
   let sawChat = false;
   let sawDraw = false;
   let checkedDraft = false;
+  let sawFinalRecap = false;
+  let sawFinalVote = false;
   let sawRecap = false;
 
   // Verliert der Test unterwegs seinen Browser, soll er das als Befund
@@ -357,6 +359,28 @@ async function main() {
       sawFinale = true;
     }
 
+    if (phase === 'final_recap' && !sawFinalRecap) {
+      await sleep(900);
+      await shot(stage, '20-buehne-duellnachlese');
+      sawFinalRecap = true;
+    }
+
+    // Bei Gleichstand wählen die Zuschauer die dümmste Antwort — das trifft
+    // nicht jede Partie, muss den Test aber auch nicht aufhalten.
+    if (phase === 'final_vote') {
+      for (const page of phones) {
+        const status = await textNow(page, '#voteStatus');
+        if (status === null || status.includes('Stimme ist drin')) continue;
+        const cards = await page.$$('.answercard:not([disabled])').catch(() => []);
+        if (cards.length) await cards[Math.floor(Math.random() * cards.length)].click().catch(() => {});
+      }
+      if (!sawFinalVote) {
+        await sleep(500);
+        await shot(stage, '22-buehne-zuschauervoting');
+        sawFinalVote = true;
+      }
+    }
+
     if (phase === 'results') {
       await sleep(1800);
       await shot(stage, '12-buehne-ergebnis');
@@ -368,7 +392,8 @@ async function main() {
   }
 
   for (const name of ['04-buehne-frage', '07-buehne-voting', '10-buehne-rausschmiss', '11-buehne-finale',
-    '12-buehne-ergebnis', '16-buehne-kategorie', '18-buehne-bilanz', '21-pc-profil']) {
+    '12-buehne-ergebnis', '16-buehne-kategorie', '18-buehne-bilanz', '21-pc-profil',
+    '20-buehne-duellnachlese']) {
     if (!shots.some((p) => p.includes(name))) problems.push(`Schlüsselmoment nie fotografiert: ${name}`);
   }
   if (lost) problems.push(`Der Test verlor seine Fenster nach ${since().trim()}: ${lost}`);

@@ -275,6 +275,11 @@ function screenFor(s) {
   // Sammlung der Fehlgriffe ist ja das, worüber die Runde lacht.
   if (s.phase === 'category') return 'category';
   if (s.phase === 'round_end') return 'recap';
+  // Das Duell zum Mitlesen sehen alle — auch die, die längst draußen sitzen.
+  if (s.phase === 'final_recap') return 'finalRecap';
+  if (s.phase === 'final_vote_reveal') return 'finalVoteReveal';
+  // Abgestimmt wird nur von den Zuschauern; die zwei da oben schauen zu.
+  if (s.phase === 'final_vote') return me.alive ? 'wait' : 'finalVote';
   if (!me.alive) return 'ghost';
   if (s.phase === 'question' || s.phase === 'reveal') return 'question';
   if (s.phase === 'voting') return 'voting';
@@ -288,6 +293,9 @@ function keyFor(s) {
   const screen = screenFor(s);
   if (screen === 'category') return `c:${s.round}:${s.draw?.index}`;
   if (screen === 'recap') return `rc:${s.round}`;
+  if (screen === 'finalRecap') return 'frc';
+  if (screen === 'finalVote') return 'fv';
+  if (screen === 'finalVoteReveal') return 'fvr';
   if (screen === 'question') return `q:${s.round}:${s.question?.index}:${s.final?.questionNo ?? ''}`;
   if (screen === 'voting') return `v:${s.round}`;
   if (screen === 'ghost') return `ghost:${s.phase === 'voting' ? 'vote' : 'watch'}:${s.round}`;
@@ -299,6 +307,7 @@ const MUSIC_MOOD = {
   reveal: ['round', 1], round_end: ['round', 1], voting: ['voting', 1], vote_reveal: ['voting', 1],
   tiebreak: ['voting', 2], tiebreak_reveal: ['voting', 2], elimination: ['voting', 1],
   final_intro: ['final', 3], final_question: ['final', 4],
+  final_recap: ['final', 3], final_vote: ['voting', 2], final_vote_reveal: ['voting', 2],
   final_reveal: ['final', 4], results: ['results', 2],
 };
 
@@ -485,6 +494,75 @@ const SCREENS = {
         caption.textContent = 'Finger auf die Tastatur.';
       },
     });
+  },
+
+  /** Das ganze Duell zum Nachlesen — für Finalisten wie Zuschauer. */
+  finalRecap() {
+    const entries = (state.finalRecap || []).slice().sort((a, b) => a.no - b.no);
+    main.replaceChildren(el('div', { class: 'grow' },
+      el('h1', { class: 'display', style: { fontSize: '1.35rem', textAlign: 'center' } }, 'Das Duell, Wort für Wort'),
+      el('p', { style: { textAlign: 'center', color: 'var(--muted)', fontSize: '.86rem' } },
+        'Alles, was die zwei geschrieben haben.'),
+      el('div', { class: 'shamelist' }, ...entries.map((entry) => {
+        const who = byId(entry.playerId);
+        return el('div', { class: `shamecard${entry.correct ? ' right' : ''}` },
+          avatarEl(who || { nick: '?' }, { size: 30 }),
+          el('span', { class: 'shametext' },
+            el('span', { class: 'said' }, entry.empty ? '… nichts geschrieben' : `„${entry.text}“`),
+            el('span', { class: 'ctx' }, `Frage ${entry.no}: ${entry.question} — richtig war ${entry.answer}`)),
+          el('span', { class: 'who' }, who?.nick || '?'));
+      }))));
+  },
+
+  /** Nur für Zuschauer: Welche der zwei Antworten war die dümmste? */
+  finalVote() {
+    const ballot = state.finalVote?.ballot || [];
+    const cards = el('div', { class: 'ballot' }, ...ballot.map((card) => {
+      const who = byId(card.playerId);
+      const node = el('button', {
+        class: 'answercard', type: 'button', 'data-id': card.id,
+        onclick: () => {
+          [...cards.children].forEach((c) => c.classList.remove('on'));
+          node.classList.add('on');
+          audio.play('voteCast');
+          buzz(BUZZ.lock);
+          net.send({ t: 'vote', ballotId: card.id });
+        },
+      },
+      avatarEl(who || { nick: '?' }, { size: 30 }),
+      el('span', {},
+        el('span', { class: `said${card.empty ? ' blank' : ''}` }, card.empty ? '… gar nichts geschrieben' : `„${card.text}“`),
+        el('span', { class: 'ctx' }, `${card.question} — richtig war ${card.answer}`)),
+      el('span', { class: 'mark' }, who?.nick || ''));
+      return node;
+    }));
+
+    main.replaceChildren(el('div', { class: 'grow' },
+      el('h1', { class: 'display', style: { fontSize: '1.35rem', textAlign: 'center' } }, '👻 Ihr entscheidet'),
+      el('p', { style: { textAlign: 'center', color: 'var(--muted)', fontSize: '.86rem' } },
+        'Gleichstand im Finale. Welche Antwort war die dümmste? Wer sie schrieb, verliert.'),
+      cards,
+      el('div', { class: 'status wait', id: 'voteStatus' }, '')));
+    UPDATE.finalVote();
+  },
+
+  finalVoteReveal() {
+    const result = state.finalVoteResult;
+    const loser = result?.loser ? byId(result.loser) : null;
+    const winner = result?.winner ? byId(result.winner) : null;
+    main.replaceChildren(el('div', { class: 'grow' },
+      el('h1', { class: 'display', style: { fontSize: '1.3rem', textAlign: 'center' } }, 'Ausgezählt'),
+      el('div', { class: 'ballot' }, ...(result?.cards || []).map((card) => {
+        const who = byId(card.playerId);
+        return el('div', { class: `answercard${card.votes ? ' on' : ''}` },
+          avatarEl(who || { nick: '?' }, { size: 30 }),
+          el('span', {},
+            el('span', { class: `said${card.empty ? ' blank' : ''}` }, card.empty ? '… gar nichts' : `„${card.text}“`),
+            el('span', { class: 'ctx' }, who?.nick || '?')),
+          el('span', { class: 'mark' }, `${card.votes}`));
+      })),
+      el('p', { style: { textAlign: 'center', fontFamily: 'var(--font-display)', fontWeight: '800' } },
+        winner && loser ? `${loser.nick} fliegt — ${winner.nick} gewinnt.` : 'Auch die Zuschauer sind sich uneinig.')));
   },
 
   /** Alles, was in der Runde danebenlag — mit Namen, zum Lachen. */
@@ -713,6 +791,7 @@ const WAIT_TEXT = {
   final_intro: 'Das Finale beginnt',
   final_question: 'Die zwei duellieren sich',
   final_reveal: 'Auflösung',
+  final_vote: 'Die Zuschauer entscheiden',
 };
 
 /**
@@ -777,6 +856,24 @@ const UPDATE = {
   lobby() { SCREENS.lobby(); },
   category() {},
   recap() {},
+  finalRecap() {},
+  finalVoteReveal() {},
+  finalVote() {
+    const status = $('#voteStatus');
+    const info = state.finalVote;
+    const mine = state.you.vote?.ballotId;
+    if (mine) {
+      main.querySelectorAll('.answercard').forEach((c) => {
+        c.classList.toggle('on', c.dataset.id === mine);
+        c.disabled = true;
+      });
+    }
+    if (status && info) {
+      status.textContent = mine
+        ? `Stimme ist drin — ${info.voted} von ${info.total} haben gewählt.`
+        : `${info.voted} von ${info.total} Zuschauern haben gewählt.`;
+    }
+  },
   question() {
     const me = state.you;
     const field = $('#answerField');

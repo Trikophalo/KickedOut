@@ -22,6 +22,8 @@ import { join } from 'node:path';
 
 const PORT = 3400 + Math.floor(Math.random() * 400);
 const PLAYERS = Number(process.env.KO_TEST_PLAYERS) || 5;
+// Erzwingt ein Unentschieden im Duell: Dann entscheiden die Zuschauer.
+const TIE = process.env.KO_TEST_FINALE_TIE === '1';
 const failures = [];
 const notes = [];
 
@@ -82,6 +84,7 @@ class Client {
 
     this.state = msg;
     this.seen.add(msg.phase);
+    if (msg.finalVoteResult) this.finalVoteResult = msg.finalVoteResult;
     this.audit(msg);
     this.act(msg);
   }
@@ -99,6 +102,14 @@ class Client {
       }
     }
     if (s.phase === 'lobby' && s.autoStartAt) this.sawCountdown = true;
+    if (s.phase === 'final_recap' && Array.isArray(s.finalRecap) && s.finalRecap.length) {
+      this.sawFinalRecap = true;
+      if (s.finalRecap.some((e) => !e.playerId || !e.answer)) this.leak = 'Unvollständige Duell-Nachlese';
+    }
+    // Ein Finalist darf über sich selbst nicht abstimmen. Der Stimmzettel
+    // steht ohnehin auf der Bühne — entscheidend ist, dass der Server die
+    // Stimme verweigert.
+    if (s.phase === 'final_vote' && s.you?.alive && s.you.vote) this.leak = 'Finalist konnte abstimmen';
     // Der Kern der Sache: Getipptes ist noch nicht abgeschickt.
     if ((s.phase === 'question' || s.phase === 'final_question') && s.you?.answer && !s.you.answerLocked) {
       this.sawDraftPending = true;
@@ -135,11 +146,32 @@ class Client {
 
     if ((s.phase === 'question' && me.alive) || (s.phase === 'final_question' && me.finalist)) {
       if (!me.answer) {
-        const known = this.knowsAnswers ? SOLUTIONS.get(s.question?.text) : null;
+        const clueless = TIE && s.phase === 'final_question';
+        const known = this.knowsAnswers && !clueless ? SOLUTIONS.get(s.question?.text) : null;
         // Alle anderen tippen Unsinn — genau daraus entsteht der Stimmzettel.
         const nonsense = ['Banane', 'Keine Ahnung', 'Dein Vater', '42', 'Käse', 'ja'];
         const text = known || nonsense[Math.floor(Math.random() * nonsense.length)];
         setTimeout(() => this.send({ t: 'answer', text, lock: this.lockAnswers }), 20 + Math.random() * 60);
+      }
+      return;
+    }
+
+    // Ein Finalist versucht es trotzdem einmal — der Server muss ablehnen.
+    if (s.phase === 'final_vote' && me.alive && !this.triedFinalVote) {
+      const card = (s.finalVote?.ballot || [])[0];
+      if (card) {
+        this.triedFinalVote = true;
+        this.send({ t: 'vote', ballotId: card.id });
+      }
+      return;
+    }
+
+    // Zuschauer entscheiden bei Gleichstand über die dümmste Antwort.
+    if (s.phase === 'final_vote' && !me.alive && !me.vote) {
+      const ballot = s.finalVote?.ballot || [];
+      if (ballot.length) {
+        const card = ballot[Math.floor(Math.random() * ballot.length)];
+        setTimeout(() => this.send({ t: 'vote', ballotId: card.id }), 20 + Math.random() * 60);
       }
       return;
     }
@@ -292,7 +324,11 @@ async function main() {
     check('Es gibt genau einen Sieger', Boolean(results.winnerId));
     check('Genau zwei Spieler erreichen das Finale', finalists.length === 2, `${finalists.length}`);
     check('Alle anderen sind rausgeflogen', stage.state.players.filter((p) => p.eliminatedRound).length === PLAYERS - 2);
-    check('Wer die Antwort tippt, füllt den Pott', results.pot > 0, `${results.pot}`);
+    // Im erzwungenen Gleichstand tippt zu zweit niemand etwas Richtiges —
+    // dann gibt es auch nichts einzuzahlen.
+    if (!(TIE && PLAYERS === 2)) {
+      check('Wer die Antwort tippt, füllt den Pott', results.pot > 0, `${results.pot}`);
+    }
     const contributed = results.table.reduce((sum, r) => sum + r.contributed, 0);
     check('Der Pott entspricht exakt der Summe aller Einzahlungen',
       results.pot === contributed, `${results.pot} vs ${contributed}`);
@@ -322,15 +358,43 @@ async function main() {
     const leaks = [stage, ...players].filter((c) => c.leak).map((c) => `${c.name}: ${c.leak}`);
     check('Weder Lösung noch fremde Eingaben vor der Auflösung ausgeliefert', leaks.length === 0, leaks.join(' | '));
     check('Auch im Finale zieht der Zufall die Kategorie', stage.sawFinalDraw === true);
+    check('Nach dem Duell kommen beide Antwortsammlungen auf den Tisch',
+      stage.sawFinalRecap === true);
+
+    // Zu zweit gibt es niemanden, der zuschauen könnte — dann bleibt es bei
+    // der Schätzfrage. Das ist der Rückfallweg, kein Fehler.
+    if (TIE && PLAYERS === 2) {
+      check('Ohne Zuschauer entscheidet bei Gleichstand weiter die Schätzfrage',
+        stage.seen.has('tiebreak') && !stage.seen.has('final_vote'));
+    }
+
+    if (TIE && PLAYERS > 2) {
+      const vr = stage.finalVoteResult;
+      check('Bei Gleichstand stimmen die Zuschauer über die dümmste Antwort ab',
+        stage.seen.has('final_vote'), [...stage.seen].join(', '));
+      check('Die Auszählung der Zuschauer wird gezeigt', stage.seen.has('final_vote_reveal'));
+      check('Nur Zuschauer haben abgestimmt',
+        Boolean(vr) && vr.voters <= vr.spectators && vr.spectators === PLAYERS - 2,
+        vr ? `${vr.voters} von ${vr.spectators}` : 'kein Ergebnis');
+      const versucht = players.filter((p) => p.triedFinalVote);
+      check('Die Finalisten haben es versucht und wurden abgewiesen',
+        versucht.length === 2 && versucht.every((p) => !p.state.you.vote),
+        `${versucht.length} Versuche`);
+      check('Wer die dümmste Antwort schrieb, verliert das Finale',
+        !vr?.loser || results.winnerId === vr.winner,
+        vr ? `Sieger ${results.winnerId}, erwartet ${vr.winner}` : '—');
+    }
 
     // Wer nur tippt, gilt nicht als fertig — sein Text zählt trotzdem.
     const drafter = players.find((p) => p.lockAnswers === false);
     check('Getipptes gilt erst nach dem Abschicken als abgegeben',
       drafter?.sawDraftPending === true);
     const drafterRow = results.table.find((r) => r.id === drafter?.playerId);
-    check('Nicht abgeschickte Antworten zählen beim Ablauf der Zeit trotzdem',
-      Boolean(drafterRow) && drafterRow.correct > 0,
-      drafterRow ? `${drafterRow.correct} richtig` : 'nicht in der Tabelle');
+    if (!(TIE && PLAYERS === 2)) {
+      check('Nicht abgeschickte Antworten zählen beim Ablauf der Zeit trotzdem',
+        Boolean(drafterRow) && drafterRow.correct > 0,
+        drafterRow ? `${drafterRow.correct} richtig` : 'nicht in der Tabelle');
+    }
     check('Niemand musste im Finale eine Kategorie wählen', !stage.seen.has('final_draft'));
 
     if (PLAYERS > 2) check('Die Bühne hat den Rausschmiss-Effekt bekommen', stage.fx.includes('eliminate'));

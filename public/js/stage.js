@@ -97,6 +97,7 @@ const MUSIC_MOOD = {
   reveal: ['round', 1], round_end: ['round', 1], voting: ['voting', 1], vote_reveal: ['voting', 1],
   tiebreak: ['voting', 2], tiebreak_reveal: ['voting', 2], elimination: ['voting', 1],
   final_intro: ['final', 3], final_question: ['final', 4],
+  final_recap: ['final', 3], final_vote: ['voting', 2], final_vote_reveal: ['voting', 2],
   final_reveal: ['final', 4], results: ['results', 2],
 };
 
@@ -168,6 +169,40 @@ function render() {
     UPDATERS[state.phase]?.();
   }
   updateModerator();
+}
+
+/** Erst das Falsche, dann das Leere, dann das Richtige — so liest es sich. */
+function sortedFinalAnswers() {
+  const rank = (e) => (e.empty ? 1 : e.correct ? 2 : 0);
+  return (state.finalRecap || []).slice().sort((a, b) => rank(a) - rank(b) || a.no - b.no);
+}
+
+function finalRow(entry, i) {
+  const who = byId(entry.playerId);
+  return el('div', { class: 'shamerow', style: { animationDelay: `${i * 70}ms` } },
+    avatarEl(who || { nick: '?' }, { size: 40 }),
+    el('span', { class: 'said' }, entry.empty ? '… nichts geschrieben' : `„${entry.text}“`),
+    el('span', { class: 'ctx' }, `${entry.question} — richtig war ${entry.answer}`),
+    el('span', { class: 'who' }, who?.nick || '?'));
+}
+
+function finalCard(card, i, votes = null) {
+  const who = byId(card.playerId);
+  return el('div', {
+    class: `finalcard${votes ? ' on' : ''}`, style: { animationDelay: `${i * 120}ms` },
+  },
+  avatarEl(who || { nick: '?' }, { size: 64 }),
+  el('span', { class: 'who' }, who?.nick || '?'),
+  el('span', { class: `said${card.empty ? ' blank' : ''}` }, card.empty ? '… nichts geschrieben' : `„${card.text}“`),
+  el('span', { class: 'ctx' }, `${card.question} — richtig war ${card.answer}`),
+  votes === null ? null : el('span', { class: 'tallynum' }, `${votes}`));
+}
+
+function syncFinalVote() {
+  const node = $('#finalVoteProgress');
+  if (!node || !state.finalVote) return;
+  const { voted, total } = state.finalVote;
+  node.textContent = `${voted} von ${total} ${total === 1 ? 'Zuschauer hat' : 'Zuschauern haben'} gewählt`;
 }
 
 function keyFor(s) {
@@ -473,6 +508,45 @@ const BUILDERS = {
   final_question() { buildQuestion(true); },
   final_reveal() { buildQuestion(true); },
 
+  /** Alles, was die zwei geschrieben haben — der Lacher zum Schluss. */
+  final_recap() {
+    const entries = sortedFinalAnswers().slice(0, 6);
+    const parts = [
+      el('h1', { class: 'headline small rise' }, 'Das Duell, Wort für Wort'),
+      finalScore(),
+      entries.length
+        ? el('div', { class: 'shame rise' }, ...entries.map((entry, i) => finalRow(entry, i)))
+        : el('p', { class: 'subline rise' }, 'Kein einziger Fehltritt. Auch das gibt es.'),
+    ];
+    scene.append(...parts.filter(Boolean));
+  },
+
+  /** Gleichstand: Die Rausgeflogenen wählen die dümmste Antwort. */
+  final_vote() {
+    const ballot = state.finalVote?.ballot || [];
+    scene.append(
+      el('h1', { class: 'headline small rise' }, 'Gleichstand — die Zuschauer entscheiden'),
+      el('p', { class: 'subline' }, 'Welche Antwort war die dümmste? Wer sie schrieb, verliert.'),
+      el('div', { class: 'finalcards rise' }, ...ballot.map((card, i) => finalCard(card, i))),
+      el('p', { class: 'subline', id: 'finalVoteProgress' }, ''),
+    );
+    syncFinalVote();
+  },
+
+  final_vote_reveal() {
+    const result = state.finalVoteResult;
+    if (!result) return;
+    const loser = result.loser ? byId(result.loser) : null;
+    const winner = result.winner ? byId(result.winner) : null;
+    scene.append(
+      el('h1', { class: 'headline small rise' }, 'Die Zuschauer haben gesprochen'),
+      el('div', { class: 'finalcards rise' }, ...result.cards.map((card, i) => finalCard(card, i, card.votes))),
+      el('p', { class: 'potflash' }, winner && loser
+        ? `${loser.nick} fliegt — ${winner.nick} gewinnt.`
+        : 'Unentschieden auch bei den Zuschauern. Dann eben die Schätzfrage.'),
+    );
+  },
+
   results() {
     const r = state.results;
     const winner = r.winnerId ? byId(r.winnerId) : null;
@@ -528,6 +602,7 @@ const UPDATERS = {
   },
   final_question() { syncAnswers(); },
   final_reveal() { syncAnswers(); },
+  final_vote() { syncFinalVote(); },
   tiebreak() {
     for (const pid of state.tiebreak.participants) {
       const node = $(`#g-${pid}`);

@@ -51,6 +51,11 @@ export const CONFIG = {
     elimination: 9800,
     finalIntro: 7000,
     finalQuestion: 20000,
+    // Nach dem Duell kommen die Antworten der zwei noch einmal aufs Bild —
+    // und bei Gleichstand stimmen die Zuschauer darüber ab.
+    finalRecap: 8000,
+    finalVote: 25000,
+    finalVoteReveal: 6500,
     finalReveal: 5400,
     // Nachlauf, nachdem alle geantwortet haben — verhindert, dass ein
     // Schnellklicker die Frage für alle anderen abwürgt.

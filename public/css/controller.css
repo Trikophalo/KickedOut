@@ -490,3 +490,7 @@
    nicht das Tippen. */
 #submitAnswer { margin-top: 0.1rem; }
 #submitAnswer:disabled { opacity: 0.55; }
+
+/* Richtige Antworten in der Duell-Nachlese bleiben erkennbar. */
+.shamecard.right { border-color: var(--mint); }
+.shamecard.right .said { color: var(--mint-soft); }

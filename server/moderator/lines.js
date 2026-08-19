@@ -648,6 +648,80 @@ export const LINES = {
     ],
   },
 
+  // Nach dem Duell: alles, was die zwei geschrieben haben, noch einmal.
+  finalRecap: {
+    charmant: [
+      'Und jetzt alles noch einmal in Ruhe: Das haben die zwei da oben geschrieben.',
+      'Schauen wir gemeinsam zurück. Manches war klug, manches war mutig.',
+      'Die Ausbeute des Duells. Beide dürfen stolz sein — auf das meiste davon.',
+      'Ein Rückblick auf zwei tapfere Menschen und ihre Antworten.',
+      'Das war das Duell. Hier steht es, Wort für Wort.',
+      'Bevor gekrönt wird: die Sammlung der zwei Finalisten.',
+      'Zwei Menschen, viele Antworten. Ein paar davon sogar richtig.',
+      'Für die Nachwelt festgehalten: das komplette Duell in Textform.',
+      'Und nun der Blick zurück. Es war schöner, als es klingt.',
+    ],
+    bissig: [
+      'Und jetzt das Beweismaterial. Alles, was die zwei geschrieben haben.',
+      'Zeit für die Nachlese. Manches davon hätte man auch weglassen können.',
+      'Das Duell in Textform. Lest es euch durch, es lohnt sich.',
+      'Hier steht schwarz auf weiß, was die beiden für Wissen halten.',
+      'Die gesammelten Werke der Finalisten. Kurz, aber eindrucksvoll.',
+      'Schauen wir uns an, womit die zwei bis hierher gekommen sind.',
+      'Alles noch einmal zum Mitlesen. Besonders die Stellen zum Fremdschämen.',
+      'Zwei Finalisten, ein Protokoll. Viel Vergnügen.',
+      'Und jetzt der Teil, in dem beide bereuen, überhaupt getippt zu haben.',
+    ],
+    gnadenlos: [
+      'Und hier das vollständige Geständnis. Jede Antwort, jeder Fehltritt.',
+      'Das Protokoll des Duells. Nichts davon lässt sich mehr zurücknehmen.',
+      'Alles, was die zwei geschrieben haben. Archiviert, für immer.',
+      'Die Beweisaufnahme ist abgeschlossen. Lest selbst.',
+      'Zwei Menschen, ihre Antworten, keine Ausreden. Bitte sehr.',
+      'Hier liegt alles offen. Manches hätte besser im Kopf bleiben sollen.',
+      'Das komplette Duell. Ich empfehle, es niemandem zu zeigen.',
+      'Und jetzt die Sammlung. Sie ist kürzer, als ihr hofft, und dümmer, als ihr denkt.',
+      'Für das Familienalbum: alles, was da oben getippt wurde.',
+    ],
+  },
+
+  // {count} = Anzahl der Zuschauer, die abstimmen dürfen
+  finalVote: {
+    charmant: [
+      'Gleichstand! {count} Zuschauer entscheiden jetzt, welche Antwort die dümmste war.',
+      'Punktgleich. Liebe Rausgeflogene, eure Stunde ist gekommen.',
+      'Beide gleichauf. Jetzt hat die Geisterzone das Wort.',
+      'Es steht unentschieden. {count} Stimmen von draußen klären das.',
+      'Kein Sieger nach Punkten. Die Zuschauer wählen die dümmste Antwort.',
+      'Gleichstand — und plötzlich zählt die Meinung derer, die längst raus sind.',
+      'Beide gleich stark. Also entscheidet, wer heute schon gelitten hat.',
+      'Unentschieden. {count} Menschen mit Groll dürfen jetzt wählen.',
+      'Punktgleich. Die Zuschauer bekommen das letzte Wort.',
+    ],
+    bissig: [
+      'Gleichstand. Jetzt rächt sich die Geisterzone: {count} Zuschauer wählen die dümmste Antwort.',
+      'Punktgleich. Wie praktisch, dass draußen {count} Leute mit offener Rechnung sitzen.',
+      'Beide gleichauf. Die Rausgeflogenen entscheiden. Das wird niemandem gefallen.',
+      'Unentschieden. Jetzt zählt, was die Zuschauer über eure Antworten denken.',
+      'Kein Sieger nach Punkten. Also nach Peinlichkeit. Die Geister wählen.',
+      'Gleichstand — und die Zuschauer haben lange auf diesen Moment gewartet.',
+      'Punktgleich. Die, die ihr rausgeworfen habt, dürfen jetzt zurückschlagen.',
+      'Beide gleich gut. Also entscheidet, wer schlechter geschrieben hat.',
+      'Unentschieden. {count} Stimmen von draußen, und keine davon meint es gut.',
+    ],
+    gnadenlos: [
+      'Gleichstand. Jetzt entscheiden {count} Menschen, die ihr aus dem Spiel geworfen habt.',
+      'Punktgleich. Die Rache der Geisterzone beginnt genau jetzt.',
+      'Beide gleichauf. Also gewinnt der, dessen Antwort weniger erbärmlich war.',
+      'Unentschieden. Die Zuschauer wählen die dümmste Antwort. Viel Glück.',
+      'Kein Sieger nach Wissen. Dann eben nach Schande.',
+      'Gleichstand. Draußen sitzen {count} Leute, die euch nichts schulden.',
+      'Punktgleich — und die Geister erinnern sich an jede eurer Stimmen.',
+      'Beide gleich weit. Der Rest ist eine Frage der Peinlichkeit.',
+      'Unentschieden. Ab hier entscheidet nicht Können, sondern Publikum.',
+    ],
+  },
+
   // {name} = Punktgewinner, {scoreA}, {scoreB} = Punktestand
   finalPoint: {
     charmant: [

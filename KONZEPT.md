@@ -174,6 +174,7 @@ Der Server führt diese Phasen als strikte State Machine; jede Phase hat einen s
 
 1. **Versus-Splash:** Beide Avatare krachen von den Seiten ins Bild, Blitz-Effekt, Kampfansage des Moderators. Der Pott hängt sichtbar über der Bühne.
 2. **Kategorie-Zug:** Auch im Duell zieht der Zufall das Fach — dieselbe Walze wie in den Runden. Niemand wählt, niemand kann taktieren. Frage 5 ist die **„Chaos"-Frage** (härteste Stufe).
+2a. **Nachlese & Zuschauer-Voting:** Jedes Duell endet mit der vollständigen Sammlung beider Finalisten-Antworten auf der Leinwand. Steht es unentschieden, wählen die **Rausgeflogenen** die dümmste der beiden Antworten; ihr Urheber verliert. Damit hat die Geisterzone einen echten Einfluss auf den Ausgang, ohne den normalen Rausschmiss zu übernehmen — dort wählen weiterhin nur die Lebenden. Ohne Zuschauer (Duell zu zweit) bleibt die Schätzfrage der Entscheider.
 3. **Blitz-Duell, Best-of-5:** Beide antworten simultan. Beide richtig → **der Schnellere** holt den Punkt. Einer richtig → Punkt. Beide falsch → kein Punkt. Erster mit 3 Punkten gewinnt; Punktestand als Tauziehen-Kette zwischen den Avataren.
 4. **Matchball-Inszenierung:** Hintergrund färbt sich dunkelrot, Herzschlag-Sound, Timer pulsiert.
 5. Bei 0:0-Blockade nach 5 Fragen: Sudden-Death-Schätzfrage (wie Blitz-Stechen).

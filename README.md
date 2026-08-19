@@ -48,8 +48,10 @@ Sitzt ihr im selben Raum an einem Fernseher? Dann zusätzlich `http://localhost:
 | **Rundenbilanz** | Bevor gewählt wird, kommt **alles Falsche der Runde mit Namen** auf die Leinwand. Das ist der Lacher, aus dem die Stimmen entstehen. |
 | **Voting** | Pro Spieler landet **eine Antwort** auf dem Stimmzettel — bevorzugt eine falsche. Man wählt die dümmste; die eigene ist gesperrt. Auf dem Zettel stehen keine Namen, die fallen erst bei der Auszählung. |
 | **Rausschmiss** | Man fliegt **einzig** über dieses Voting raus, nie über Punkte. Die Stimmen tropfen einzeln auf die Karten, dann fallen die Namen — und die meistgewählte Antwort kostet ihren Urheber den Platz. Spotlight, Stempel **„DU FLIEGST!"**, Katapult. |
-| **Geisterzone** | Rausgeflogene bleiben im Spiel: Chat, Emoji-Regen auf die Bühne und Prophezeiungen, wer als Nächstes fliegt. |
+| **Geisterzone** | Rausgeflogene bleiben im Spiel: Chat, Emoji-Regen auf die Bühne, Prophezeiungen, wer als Nächstes fliegt — und im Finale die entscheidende Stimme bei Gleichstand. |
 | **Finale** | Die letzten zwei duellieren sich Best-of-5. Auch hier wird die Kategorie gezogen, nicht gewählt; beide richtig → der Schnellere punktet. Frage 5 ist immer „Chaos". **Zu zweit** geht es sofort hierhin — ohne Rausschmiss, direkt ins Duell. |
+| **Duell-Nachlese** | Egal wie es ausgeht: Zum Schluss kommt **alles auf die Leinwand, was die zwei getippt haben** — mit Namen. |
+| **Zuschauer-Voting** | Steht es am Ende **unentschieden**, entscheiden die **Rausgeflogenen**: Welche der beiden Antworten war die dümmste? Wer sie geschrieben hat, verliert das Finale. Die zwei auf der Bühne stimmen nicht mit — der Server weist ihre Stimme ab. Gibt es keine Zuschauer (Duell zu zweit), bleibt es bei der Schätzfrage. |
 | **Ergebnis** | Krönung mit Konfetti (die Menge skaliert mit dem Pott), Awards, Highlight-Recap, Revanche-Knopf. |
 
 Bei 8–9 Spielern fliegen in den ersten Runden zwei auf einmal — so bleibt der Abend bei 25–40 Minuten.
